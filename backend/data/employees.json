@@ -1,0 +1,25 @@
+{
+  "utkarsh": {
+    "name": "Utkarsh",
+    "designation": "helper"
+  },
+  "salil": {
+    "name": "salil",
+    "designation": "manager",
+    "phone": "+91YYYYYYYYYY"
+  },
+  "vishnu": {
+    "name": "Vishnu",
+    "designation": "WardBoy2",
+    "phone": "+91ZZZZZZZZZZ"
+  },
+  "rishabh": {
+    "name": "Rishabh",
+    "designation": "Sweeper",
+    "phone": "+91AAAAAAAAAA"
+  },
+  "utkarsh_arora": {
+    "name": "Utkarsh Arora",
+    "designation": "worker"
+  }
+}

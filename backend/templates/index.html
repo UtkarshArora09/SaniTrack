@@ -1,0 +1,132 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SaniTrack Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Hospital Sanitation Monitoring</p>
+        <h1>SaniTrack Control Room</h1>
+        <p class="hero-copy">Track attendance, verify floor cleanliness, and audit ward hygiene from one place.</p>
+      </div>
+      <div class="hero-panel">
+        <span class="live-dot"></span>
+        <span>Live webcam + alerts + dataset diagnostics</span>
+      </div>
+    </header>
+
+    <section class="stats-grid" id="statsGrid"></section>
+
+    <section class="content-grid">
+      <div class="card form-card">
+        <h2>Add Ward</h2>
+        <form id="wardForm">
+          <input name="name" placeholder="Ward name" required />
+          <input name="location" placeholder="Location" />
+          <input name="assigned_employee_key" placeholder="Assigned employee key" />
+          <button type="submit">Save Ward</button>
+        </form>
+      </div>
+
+      <div class="card form-card">
+        <h2>Add Employee</h2>
+        <form id="employeeForm">
+          <input name="emp_key" placeholder="Employee key" required />
+          <input name="name" placeholder="Full name" required />
+          <input name="designation" placeholder="Designation" />
+          <input name="phone" placeholder="Phone" />
+          <button type="submit">Save Employee</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="content-grid webcam-grid">
+      <div class="card form-card accent-card">
+        <h2>Attendance Recognition</h2>
+        <p>Use an uploaded image or live webcam frame to verify the cleaner against the stored face dataset.</p>
+        <form id="attendanceForm" enctype="multipart/form-data">
+          <input name="ward_name" placeholder="Ward name" required />
+          <input type="file" name="image" accept="image/*" />
+          <div class="webcam-block" data-webcam="attendance">
+            <video id="attendanceVideo" class="webcam-video" autoplay playsinline muted></video>
+            <canvas id="attendanceCanvas" class="webcam-canvas" width="640" height="480"></canvas>
+            <div class="webcam-actions">
+              <button type="button" class="ghost" data-start-camera="attendance">Start Camera</button>
+              <button type="button" class="ghost" data-capture-camera="attendance">Capture Frame</button>
+              <button type="button" class="ghost" data-clear-capture="attendance">Clear Capture</button>
+            </div>
+          </div>
+          <button type="submit">Verify Attendance</button>
+        </form>
+        <div id="attendanceResult" class="result-box"></div>
+      </div>
+
+      <div class="card form-card accent-card alt">
+        <h2>Floor Inspection</h2>
+        <p>Use an uploaded floor image or a live webcam frame. Any detected waste marks the ward as <strong>Not Clean</strong>.</p>
+        <form id="inspectionForm" enctype="multipart/form-data">
+          <input name="ward_name" placeholder="Ward name" required />
+          <input name="employee_key" placeholder="Employee key (optional)" />
+          <textarea name="notes" placeholder="Notes"></textarea>
+          <input type="file" name="image" accept="image/*" />
+          <div class="webcam-block" data-webcam="inspection">
+            <video id="inspectionVideo" class="webcam-video" autoplay playsinline muted></video>
+            <canvas id="inspectionCanvas" class="webcam-canvas" width="640" height="480"></canvas>
+            <div class="webcam-actions">
+              <button type="button" class="ghost" data-start-camera="inspection">Start Camera</button>
+              <button type="button" class="ghost" data-capture-camera="inspection">Capture Frame</button>
+              <button type="button" class="ghost" data-clear-capture="inspection">Clear Capture</button>
+            </div>
+          </div>
+          <button type="submit">Analyze Floor</button>
+        </form>
+        <div id="inspectionResult" class="result-box"></div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <div class="card">
+        <div class="card-header">
+          <h2>Ward Status</h2>
+          <button class="ghost" onclick="loadAll()">Refresh</button>
+        </div>
+        <div id="wardsList" class="list-grid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Recent Activity</h2>
+        </div>
+        <div id="historyList" class="timeline"></div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <div class="card">
+        <div class="card-header">
+          <h2>Face Dataset Quality</h2>
+          <button class="ghost" onclick="loadFaceQuality()">Refresh Report</button>
+        </div>
+        <div id="faceQuality" class="timeline"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Notification Mode</h2>
+        </div>
+        <div class="result-box" id="notificationMode">Loading configuration…</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
