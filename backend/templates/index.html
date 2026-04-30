@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -6,7 +6,7 @@
   <title>SaniTrack Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2...family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
@@ -15,11 +15,11 @@
       <div>
         <p class="eyebrow">Hospital Sanitation Monitoring</p>
         <h1>SaniTrack Control Room</h1>
-        <p class="hero-copy">Track attendance, verify floor cleanliness, and audit ward hygiene from one place.</p>
+        <p class="hero-copy">Attendance verification, cleaning validation, task reassignment, overrides, and worker task visibility in one place.</p>
       </div>
       <div class="hero-panel">
         <span class="live-dot"></span>
-        <span>Live webcam + alerts + dataset diagnostics</span>
+        <span>SaniTrack Live Dashboard</span>
       </div>
     </header>
 
@@ -51,7 +51,7 @@
     <section class="content-grid webcam-grid">
       <div class="card form-card accent-card">
         <h2>Attendance Recognition</h2>
-        <p>Use an uploaded image or live webcam frame to verify the cleaner against the stored face dataset.</p>
+        <p>Use an uploaded image or live webcam frame to verify attendance for the assigned worker.</p>
         <form id="attendanceForm" enctype="multipart/form-data">
           <input name="ward_name" placeholder="Ward name" required />
           <input type="file" name="image" accept="image/*" />
@@ -71,7 +71,7 @@
 
       <div class="card form-card accent-card alt">
         <h2>Floor Inspection</h2>
-        <p>Use an uploaded floor image or a live webcam frame. Any detected waste marks the ward as <strong>Not Clean</strong>.</p>
+        <p>Use an uploaded floor image or live webcam frame. If waste is detected, the ward is marked <strong>Not Clean</strong> and alerts can be sent.</p>
         <form id="inspectionForm" enctype="multipart/form-data">
           <input name="ward_name" placeholder="Ward name" required />
           <input name="employee_key" placeholder="Employee key (optional)" />
@@ -95,7 +95,7 @@
     <section class="content-grid">
       <div class="card">
         <div class="card-header">
-          <h2>Ward Status</h2>
+          <h2>Admin Ward Operations</h2>
           <button class="ghost" onclick="loadAll()">Refresh</button>
         </div>
         <div id="wardsList" class="list-grid"></div>
@@ -103,9 +103,29 @@
 
       <div class="card">
         <div class="card-header">
+          <h2>Worker Dashboard</h2>
+        </div>
+        <div class="worker-toolbar">
+          <select id="workerSelector"></select>
+          <button class="ghost" id="loadWorkerBtn">Load Worker View</button>
+        </div>
+        <div id="workerPanel" class="timeline"></div>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <div class="card">
+        <div class="card-header">
           <h2>Recent Activity</h2>
         </div>
         <div id="historyList" class="timeline"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Workers</h2>
+        </div>
+        <div id="workersList" class="timeline"></div>
       </div>
     </section>
 

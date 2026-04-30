@@ -15,14 +15,27 @@ def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _ensure_column(cur, table_name, column_name, definition):
+    columns = [row[1] for row in cur.execute(f"PRAGMA table_info({table_name})").fetchall()]
+    if column_name not in columns:
+        cur.execute(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}')
+
+
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
     cur.execute('CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY AUTOINCREMENT, emp_key TEXT UNIQUE NOT NULL, name TEXT NOT NULL, designation TEXT, phone TEXT, created_at TEXT NOT NULL)')
     cur.execute('CREATE TABLE IF NOT EXISTS wards (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, location TEXT, assigned_employee_key TEXT, created_at TEXT NOT NULL)')
-    cur.execute('CREATE TABLE IF NOT EXISTS attendance_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_key TEXT NOT NULL, ward_name TEXT NOT NULL, confidence REAL, source_image TEXT, created_at TEXT NOT NULL)')
-    cur.execute('CREATE TABLE IF NOT EXISTS inspection_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, ward_name TEXT NOT NULL, employee_key TEXT, status TEXT NOT NULL, object_found INTEGER NOT NULL, confidence REAL, object_count INTEGER NOT NULL, raw_label TEXT, source_image TEXT, annotated_image TEXT, notes TEXT, created_at TEXT NOT NULL)')
+    cur.execute('CREATE TABLE IF NOT EXISTS attendance_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_key TEXT NOT NULL, ward_name TEXT NOT NULL, confidence REAL, source_image TEXT, assigned_match INTEGER DEFAULT 1, created_at TEXT NOT NULL)')
+    cur.execute('CREATE TABLE IF NOT EXISTS inspection_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, ward_name TEXT NOT NULL, employee_key TEXT, status TEXT NOT NULL, object_found INTEGER NOT NULL, confidence REAL, object_count INTEGER NOT NULL, raw_label TEXT, source_image TEXT, annotated_image TEXT, notes TEXT, overridden_status TEXT, overridden_by TEXT, override_reason TEXT, overridden_at TEXT, created_at TEXT NOT NULL)')
     cur.execute('CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, ward_name TEXT NOT NULL, channel TEXT NOT NULL, message TEXT NOT NULL, delivery_status TEXT NOT NULL, created_at TEXT NOT NULL)')
+    cur.execute('CREATE TABLE IF NOT EXISTS task_confirmations (id INTEGER PRIMARY KEY AUTOINCREMENT, ward_name TEXT NOT NULL, employee_key TEXT NOT NULL, notes TEXT, created_at TEXT NOT NULL)')
+
+    _ensure_column(cur, 'attendance_logs', 'assigned_match', 'INTEGER DEFAULT 1')
+    _ensure_column(cur, 'inspection_logs', 'overridden_status', 'TEXT')
+    _ensure_column(cur, 'inspection_logs', 'overridden_by', 'TEXT')
+    _ensure_column(cur, 'inspection_logs', 'override_reason', 'TEXT')
+    _ensure_column(cur, 'inspection_logs', 'overridden_at', 'TEXT')
 
     for ward in DEFAULT_WARDS:
         cur.execute('INSERT OR IGNORE INTO wards (name, location, assigned_employee_key, created_at) VALUES (?, ?, ?, ?)', (ward, ward, None, utc_now_iso()))

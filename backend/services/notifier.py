@@ -1,4 +1,5 @@
 ﻿from datetime import datetime, timezone
+import re
 
 from twilio.rest import Client
 
@@ -8,6 +9,10 @@ from database import execute
 
 def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _is_valid_e164(phone_number):
+    return bool(phone_number and re.fullmatch(r'\+[1-9]\d{7,14}', phone_number))
 
 
 def _send_twilio_whatsapp(phone_number, body):
@@ -26,9 +31,9 @@ def record_notification(ward_name, message, channel='dashboard', delivery_status
 def notify_targets(ward_name, message, employee_phone=None):
     outcomes = []
     targets = []
-    if employee_phone:
+    if _is_valid_e164(employee_phone):
         targets.append(('whatsapp-worker', employee_phone))
-    if ADMIN_WHATSAPP_TO:
+    if _is_valid_e164(ADMIN_WHATSAPP_TO):
         targets.append(('whatsapp-admin', ADMIN_WHATSAPP_TO))
 
     if not targets:
