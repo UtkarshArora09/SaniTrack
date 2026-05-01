@@ -1,8 +1,4 @@
 {
-  "utkarsh": {
-    "name": "Utkarsh",
-    "designation": "helper"
-  },
   "salil": {
     "name": "salil",
     "designation": "manager",
@@ -17,9 +13,5 @@
     "name": "Rishabh",
     "designation": "Sweeper",
     "phone": "+91AAAAAAAAAA"
-  },
-  "utkarsh_arora": {
-    "name": "Utkarsh Arora",
-    "designation": "worker"
   }
 }
