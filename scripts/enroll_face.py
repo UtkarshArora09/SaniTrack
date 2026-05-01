@@ -1,4 +1,4 @@
-﻿import json
+import json
 import re
 from pathlib import Path
 
@@ -17,6 +17,10 @@ if face_cascade.empty():
 DATASET_DIR.mkdir(parents=True, exist_ok=True)
 raw_name = input('Enter the name of the person: ').strip()
 designation = input('Enter the designation: ').strip() or 'Unknown'
+phone = input('Enter the phone number (mandatory, with country code like +91...): ').strip()
+if not phone:
+    raise ValueError('Phone number is mandatory.')
+    
 file_key = re.sub(r'[^a-zA-Z0-9_]+', '_', raw_name.replace(' ', '_')).lower().strip('_')
 if not file_key:
     raise ValueError('Invalid name provided.')
@@ -81,7 +85,7 @@ np.save(save_path, merged)
 employees = {}
 if EMPLOYEES_JSON.exists():
     employees = json.loads(EMPLOYEES_JSON.read_text(encoding='utf-8'))
-employees[file_key] = {'name': raw_name, 'designation': designation, 'phone': employees.get(file_key, {}).get('phone')}
+employees[file_key] = {'name': raw_name, 'designation': designation, 'phone': phone}
 EMPLOYEES_JSON.write_text(json.dumps(employees, indent=2), encoding='utf-8')
 
 print(f'Added {len(face_data)} new samples to {save_path}')
