@@ -4,19 +4,16 @@ import cv2
 
 from config import CONFIDENCE_THRESHOLD, INSPECTIONS_DIR, MODEL_PATH
 
-try:
-    from ultralytics import YOLO
-except Exception:
-    YOLO = None
-
-
 class CleanlinessService:
     def __init__(self):
         self._model = None
 
     def _ensure_model(self):
-        if YOLO is None:
+        try:
+            from ultralytics import YOLO
+        except ImportError:
             raise RuntimeError('Ultralytics is not installed. Install requirements first.')
+            
         if self._model is None:
             self._model = YOLO(str(MODEL_PATH))
         return self._model

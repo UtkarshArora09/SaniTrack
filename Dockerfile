@@ -1,4 +1,4 @@
-﻿# Use a slim Python base image for deployment
+# Use a slim Python base image for deployment
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -26,4 +26,4 @@ RUN mkdir -p backend/data/uploads backend/data/inspections
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app", "--timeout", "180"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app", "--workers", "1", "--threads", "2", "--max-requests", "50", "--timeout", "180"]
