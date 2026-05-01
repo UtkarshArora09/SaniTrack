@@ -1,0 +1,23 @@
+﻿# Python cache
+__pycache__/
+*.py[cod]
+
+# Local environment
+.env
+.venv/
+venv/
+
+# Git
+.git/
+.gitignore
+
+# Runtime artifacts
+backend/data/uploads/
+backend/data/inspections/
+backend/data/sanitrack.db
+
+# OS / IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

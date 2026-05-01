@@ -19,6 +19,9 @@ SECRET_KEY = os.getenv('SANITRACK_SECRET_KEY', 'sanitrack-dev-secret')
 DEFAULT_WARDS = ['Emergency', 'ICU', 'Ward 1', 'Ward 2', 'Pediatrics']
 CONFIDENCE_THRESHOLD = float(os.getenv('SANITRACK_CONFIDENCE', '0.5'))
 FACE_DISTANCE_THRESHOLD = float(os.getenv('SANITRACK_FACE_THRESHOLD', '0.8'))
+APP_HOST = os.getenv('SANITRACK_HOST', '0.0.0.0')
+APP_PORT = int(os.getenv('PORT', os.getenv('SANITRACK_PORT', '5000')))
+APP_DEBUG = os.getenv('SANITRACK_DEBUG', 'false').lower() == 'true'
 
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')

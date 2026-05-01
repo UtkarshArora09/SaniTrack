@@ -412,4 +412,4 @@ def upload_file(filename):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    app.run(debug=config.APP_DEBUG, host=config.APP_HOST, port=config.APP_PORT)
