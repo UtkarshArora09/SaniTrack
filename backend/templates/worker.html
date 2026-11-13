@@ -8,7 +8,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  
+  <!-- Progressive Web App (PWA) Configuration -->
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}" />
+  <meta name="theme-color" content="#0284c7" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SaniTrack Staff" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}" />
 </head>
+
 <body>
   <div class="worker-shell">
     
@@ -42,7 +52,20 @@
       </div>
     </div>
 
+    <!-- PWA Install Prompt Banner (Shows on mobile when installable) -->
+    <div id="pwaInstallBanner" style="display: none; margin-top: 14px; background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 12px; padding: 14px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 24px;">📱</span>
+        <div>
+          <strong style="color: #0369a1; font-size: 14px;">Install SaniTrack on Home Screen</strong>
+          <p style="margin: 2px 0 0; color: #0284c7; font-size: 12px;">Install as a native app on your phone for instant full-screen duty access.</p>
+        </div>
+      </div>
+      <button type="button" id="btnPwaInstall" class="btn btn-sm btn-primary">📲 Install App</button>
+    </div>
+
     <!-- Telegram 1-Click Self-Registration Banner -->
+
     <div id="telegramConnectBanner" style="margin-top: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
       <div style="display: flex; align-items: center; gap: 12px;">
         <span style="font-size: 24px;">📲</span>

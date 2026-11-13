@@ -180,4 +180,43 @@ if (refreshBtn) {
   });
 }
 
+// Initial Load
 loadWorkerPage();
+
+// Progressive Web App (PWA) Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/static/sw.js').catch(err => {
+      console.debug('SW registration skipped:', err);
+    });
+  });
+}
+
+// PWA Install Prompt Banner Event Handling
+let deferredPrompt = null;
+const pwaBanner = document.getElementById('pwaInstallBanner');
+const btnPwaInstall = document.getElementById('btnPwaInstall');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (pwaBanner) pwaBanner.style.display = 'flex';
+});
+
+if (btnPwaInstall) {
+  btnPwaInstall.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted' && pwaBanner) {
+      pwaBanner.style.display = 'none';
+    }
+    deferredPrompt = null;
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  if (pwaBanner) pwaBanner.style.display = 'none';
+});
+
+
