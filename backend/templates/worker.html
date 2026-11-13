@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   
   <!-- Progressive Web App (PWA) Configuration -->
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}" />
+  <link rel="manifest" href="/manifest.json?emp={{ emp_key }}" />
   <meta name="theme-color" content="#0284c7" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -127,6 +127,10 @@
 
   <script>
     window.SANITRACK_WORKER_KEY = {{ emp_key|tojson }};
+    try {
+      localStorage.setItem('sanitrack_emp_key', window.SANITRACK_WORKER_KEY);
+      document.cookie = "sanitrack_emp_key=" + encodeURIComponent(window.SANITRACK_WORKER_KEY) + "; path=/; max-age=31536000; SameSite=Lax";
+    } catch(e) {}
   </script>
   <script src="{{ url_for('static', filename='worker.js') }}"></script>
 </body>

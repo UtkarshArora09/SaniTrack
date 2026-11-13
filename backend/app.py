@@ -8,7 +8,7 @@ for p in [str(PROJECT_ROOT), str(BACKEND_DIR)]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from flask import Flask, jsonify, render_template, send_from_directory
+from flask import Flask, jsonify, make_response, redirect, render_template, request, send_from_directory
 
 import config
 from database import fetch_all, fetch_one, init_db
@@ -78,12 +78,100 @@ def index():
     return render_template('index.html')
 
 
+@app.get('/manifest.json')
+def app_manifest():
+    emp_key = request.args.get('emp') or request.cookies.get('sanitrack_emp_key')
+    worker = None
+    if emp_key:
+        worker = fetch_one('SELECT * FROM employees WHERE emp_key = ?', (emp_key,))
+    
+    start_url = f"/worker/{emp_key}" if (emp_key and worker) else "/worker"
+    worker_name = worker.get('name') if worker else "Staff"
+
+    manifest_data = {
+        "name": f"SaniTrack Staff ({worker_name})" if worker else "SaniTrack Staff Portal",
+        "short_name": "SaniTrack",
+        "description": "Hospital Sanitation & Ward Cleaning Staff Mobile App",
+        "start_url": start_url,
+        "scope": "/",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#f8fafc",
+        "theme_color": "#0284c7",
+        "icons": [
+            {
+                "src": "/static/icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable"
+            },
+            {
+                "src": "/static/icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }
+        ]
+    }
+    return jsonify(manifest_data)
+
+
+@app.get('/worker')
+@app.get('/worker/')
+def worker_portal_redirect():
+    emp_key = request.args.get('emp') or request.cookies.get('sanitrack_emp_key')
+    if emp_key:
+        worker = fetch_one('SELECT emp_key FROM employees WHERE emp_key = ?', (emp_key,))
+        if worker:
+            return redirect(f"/worker/{worker['emp_key']}")
+    
+    # If no cookie or param, check first available employee
+    first_worker = fetch_one('SELECT emp_key FROM employees ORDER BY id ASC LIMIT 1')
+    default_emp = first_worker['emp_key'] if first_worker else 'utkarsh_arora'
+    
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Opening SaniTrack Staff Portal...</title>
+  <script>
+    try {{
+      const saved = localStorage.getItem('sanitrack_emp_key');
+      if (saved) {{
+        window.location.replace('/worker/' + encodeURIComponent(saved));
+      }} else {{
+        window.location.replace('/worker/{default_emp}');
+      }}
+    }} catch(e) {{
+      window.location.replace('/worker/{default_emp}');
+    }}
+  </script>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #0284c7; text-align: center;">
+  <div>
+    <div style="font-size: 36px; margin-bottom: 12px;">🏥</div>
+    <div style="font-weight: 600; font-size: 16px;">Opening SaniTrack Staff Portal...</div>
+  </div>
+</body>
+</html>"""
+    return html
+
+
+@app.get('/static')
+@app.get('/static/')
+def static_root_redirect():
+    # If a user's previously installed PWA shortcut opens /static/ due to old start_url=".", redirect to /worker
+    return redirect('/worker')
+
+
 @app.get('/worker/<emp_key>')
 def worker_view(emp_key):
     worker = fetch_one('SELECT * FROM employees WHERE emp_key = ?', (emp_key,))
     if not worker:
         return 'Worker not found', 404
-    return render_template('worker.html', emp_key=emp_key, worker_name=worker.get('name', emp_key), worker=worker)
+    resp = make_response(render_template('worker.html', emp_key=emp_key, worker_name=worker.get('name', emp_key), worker=worker))
+    resp.set_cookie('sanitrack_emp_key', emp_key, max_age=31536000, samesite='Lax', path='/')
+    return resp
 
 
 @app.get('/api/health')

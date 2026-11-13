@@ -2,7 +2,7 @@
   "name": "SaniTrack Staff Portal",
   "short_name": "SaniTrack",
   "description": "Hospital Sanitation & Ward Cleaning Staff Mobile App",
-  "start_url": ".",
+  "start_url": "/worker",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -23,3 +23,4 @@
     }
   ]
 }
+
