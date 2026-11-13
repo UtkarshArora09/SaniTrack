@@ -24,7 +24,10 @@ Thumbs.db
 # Uploads and datasets
 backend/data/uploads/*
 !backend/data/uploads/.gitkeep
-# Runtime data
-backend/data/sanitrack.db
 backend/data/inspections/*
 !backend/data/inspections/.gitkeep
+backend/data/face_dataset/*
+!backend/data/face_dataset/.gitkeep
+
+# Runtime database
+backend/data/sanitrack.db

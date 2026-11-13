@@ -1,9 +1,11 @@
-﻿import sys
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 BACKEND_DIR = BASE_DIR / 'backend'
-sys.path.insert(0, str(BACKEND_DIR))
+for p in [str(BASE_DIR), str(BACKEND_DIR)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from services.face_service import FaceRecognitionService
 

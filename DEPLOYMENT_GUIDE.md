@@ -1,36 +1,73 @@
-# SaniTrack Deployment Guide
+# SaniTrack — Production Deployment Guide
 
-Your project is completely ready for deployment on **Render** using Docker! Based on the analysis of your codebase, all necessary configuration files (`Dockerfile`, `render.yaml`, `wsgi.py`) are properly set up and you have successfully pushed them to your GitHub repository.
+This guide covers deploying SaniTrack using **Render**, **Railway**, or **Docker Compose (Local/VPS)**.
 
-Here is the step-by-step guide to get your application live:
+---
 
-## Step 1: Connect to Render using Blueprint
-Since your repository includes a `render.yaml` file, we can use Render's Blueprint feature to automatically configure your service.
+## 1. Quick Deploy on Render (Recommended)
 
-1. Log in to your [Render Dashboard](https://dashboard.render.com/).
-2. Click the **New** button in the top right corner and select **Blueprint**.
-3. Connect your GitHub account (if you haven't already).
-4. Search for and select your repository: `UtkarshArora09/SaniTrack`.
-5. Click **Connect**.
-6. Render will read your `render.yaml` file and prompt you to create a Web Service named `sanitrack`. Click **Apply**.
+Since the repository includes a [`render.yaml`](./render.yaml) blueprint and [`Dockerfile`](./Dockerfile), Render deploys the entire stack automatically.
 
-## Step 2: Configure Environment Variables
-In your `render.yaml`, several sensitive environment variables are configured with `sync: false`. This means you need to manually provide their values in the Render dashboard for security reasons.
+### Steps:
+1. Push your latest code to GitHub (`https://github.com/UtkarshArora09/SaniTrack`).
+2. Log in to [Render Dashboard](https://dashboard.render.com/).
+3. Click **New +** &rarr; **Blueprint**.
+4. Select your repository: `UtkarshArora09/SaniTrack`.
+5. Render reads `render.yaml` and auto-configures:
+   * **Runtime**: Docker (Python 3.12 + OpenCV + PyTorch/YOLO)
+   * **Health Check**: `/api/health`
+   * **Port**: Dynamic (`$PORT`)
+6. Click **Apply**.
+7. In the **Environment** tab on Render, optionally set your Twilio telephony keys:
+   * `TWILIO_ACCOUNT_SID`
+   * `TWILIO_AUTH_TOKEN`
+   * `TWILIO_WHATSAPP_FROM`
+   * `ADMIN_WHATSAPP_TO`
+8. Once built, click your live URL (e.g., `https://sanitrack.onrender.com`).
 
-1. Once the service is created, click on your **`sanitrack`** Web Service in the Render dashboard.
-2. Navigate to the **Environment** tab on the left menu.
-3. You will see several empty environment variables. Fill in the values for:
-   - `TWILIO_ACCOUNT_SID`
-   - `TWILIO_AUTH_TOKEN`
-   - `TWILIO_WHATSAPP_FROM`
-   - `ADMIN_WHATSAPP_TO`
-4. Click **Save Changes**.
+---
 
-## Step 3: Monitor Deployment
-1. Navigate to the **Events** or **Logs** tab of your `sanitrack` service on Render.
-2. You will see Render building your Docker image (installing system dependencies like `libgl1` for OpenCV and installing your Python packages).
-3. Once the build finishes, Render will start the application using Gunicorn.
-4. When you see the message indicating the service is live, click the **URL** provided by Render at the top of the dashboard (e.g., `https://sanitrack.onrender.com`) to access your live application.
+## 2. Deploy on Railway
 
-> [!NOTE]
-> **Data Persistence:** Because you are deploying on the Free tier, Render provides an ephemeral file system. This means any newly uploaded images (`data/uploads`), generated inspections (`data/inspections`), or updates to the SQLite database (`data/sanitrack.db`) will be reset every time the application restarts or redeploys. For a fully production-ready environment, you may want to consider using a persistent PostgreSQL database and cloud storage (like AWS S3) in the future.
+1. Log in to [Railway.app](https://railway.app/).
+2. Click **New Project** &rarr; **Deploy from GitHub Repo**.
+3. Select `UtkarshArora09/SaniTrack`.
+4. Railway detects the `Dockerfile` automatically.
+5. In **Variables**, add:
+   * `SANITRACK_SECRET_KEY`: (generate a random string)
+   * `SANITRACK_PORT`: `5050`
+6. Click **Deploy**. Railway will generate a public domain (e.g. `https://sanitrack.up.railway.app`).
+
+---
+
+## 3. Deploy with Docker Compose (Local / Cloud VPS)
+
+Run the containerized stack locally or on any cloud server (AWS, GCP, DigitalOcean):
+
+```bash
+# 1. Clone repository
+git clone https://github.com/UtkarshArora09/SaniTrack.git
+cd SaniTrack
+
+# 2. Configure environment
+cp .env.example .env
+
+# 3. Start containers
+docker compose up -d --build
+```
+Access the application at: `http://localhost:5050`
+
+---
+
+## 4. Environment Variables Reference
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `PORT` / `SANITRACK_PORT` | `5050` | HTTP port for the web server |
+| `SANITRACK_SECRET_KEY` | `sanitrack-dev-secret` | Session and token encryption key |
+| `SANITRACK_CONFIDENCE` | `0.5` | YOLOv8 minimum detection threshold |
+| `SANITRACK_FACE_THRESHOLD` | `0.8` | Face biometric distance verification threshold |
+| `TWILIO_ACCOUNT_SID` | *Optional* | Twilio API Account SID for WhatsApp alerts |
+| `TWILIO_AUTH_TOKEN` | *Optional* | Twilio API Auth Token |
+| `TWILIO_WHATSAPP_FROM` | *Optional* | Twilio WhatsApp sender number |
+| `ADMIN_WHATSAPP_TO` | *Optional* | Hospital Director/Admin phone number |

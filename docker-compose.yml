@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sanitrack_api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - SANITRACK_HOST=0.0.0.0
+      - SANITRACK_CONFIDENCE=0.5
+      - SANITRACK_FACE_THRESHOLD=0.8
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_WHATSAPP_FROM=${TWILIO_WHATSAPP_FROM}
+      - ADMIN_WHATSAPP_TO=${ADMIN_WHATSAPP_TO}
+    volumes:
+      - sanitrack_data:/app/backend/data
+
+volumes:
+  sanitrack_data:
+    driver: local
+

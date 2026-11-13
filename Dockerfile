@@ -22,8 +22,8 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Ensure runtime directories exist even when ignored by git
-RUN mkdir -p backend/data/uploads backend/data/inspections
+RUN mkdir -p backend/data/uploads backend/data/inspections backend/data/face_dataset
 
-EXPOSE 5000
+EXPOSE 5050
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app", "--workers", "1", "--threads", "2", "--max-requests", "50", "--timeout", "180"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} wsgi:app --workers 1 --threads 4 --timeout 180"]

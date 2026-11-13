@@ -3,148 +3,246 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SaniTrack Dashboard</title>
+  <title>SaniTrack — Hospital Sanitation & Workforce Tracking</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2...family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
   <div class="page-shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Hospital Sanitation Monitoring</p>
-        <h1>SaniTrack Control Room</h1>
-        <p class="hero-copy">Attendance verification, cleaning validation, task reassignment, overrides, and worker task visibility in one place.</p>
+    
+    <!-- Top Healthcare Navigation Bar -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">🏥</div>
+        <div>
+          <div class="brand-title">SaniTrack <span class="brand-badge">Healthcare OS</span></div>
+          <div class="brand-sub">Intelligent Ward Sanitation & Workforce Management</div>
+        </div>
       </div>
-      <div class="hero-panel">
-        <span class="live-dot"></span>
-        <span>SaniTrack Live Dashboard</span>
+      <div class="header-actions">
+        <div class="status-indicator">
+          <span class="pulsing-dot"></span>
+          <span>Live Ward AI Active</span>
+        </div>
+        <a href="/api/reports/audit.csv" class="btn btn-outline" download>📥 Export Audit CSV</a>
       </div>
     </header>
 
-    <section class="stats-grid" id="statsGrid"></section>
+    <!-- Top Alert Toast Bar -->
+    <div class="live-toast-bar" id="liveToastBar">
+      <span class="toast-tag">TELEPHONY / BUS</span>
+      <span class="toast-text" id="liveToastText">All hospital wards online. Shift monitoring active.</span>
+    </div>
 
-    <section class="content-grid">
-      <div class="card form-card">
-        <h2>Add Ward</h2>
-        <form id="wardForm">
-          <input name="name" placeholder="Ward name" required />
-          <input name="location" placeholder="Location" />
-          <input name="assigned_employee_key" placeholder="Assigned employee key" />
-          <button type="submit">Save Ward</button>
-        </form>
+    <!-- Quick Operations Metrics -->
+    <section class="metrics-row" id="metricsRow"></section>
+
+    <!-- 4-STEP HOSPITAL ADMIN OPERATIONAL WORKFLOW -->
+    <section class="workflow-container">
+      <div class="section-title">
+        <h2>Daily Ward Sanitation Workflow</h2>
+        <p>Four-step protocol: Check-in cleaner &rarr; Assign duty &rarr; Monitor live work &rarr; Verify floor cleanliness.</p>
       </div>
 
-      <div class="card form-card">
-        <h2>Add Employee</h2>
-        <form id="employeeForm">
-          <input name="emp_key" placeholder="Employee key" required />
-          <input name="name" placeholder="Full name" required />
-          <input name="designation" placeholder="Designation" />
-          <input name="phone" placeholder="Phone" />
-          <button type="submit">Save Employee</button>
-        </form>
-      </div>
-    </section>
+      <div class="steps-grid">
+        
+        <!-- STEP 1: VERIFY ATTENDANCE -->
+        <div class="step-card">
+          <div class="step-badge">STEP 1</div>
+          <h3>Biometric Attendance</h3>
+          <p>Scan staff face at ward entrance to confirm identity and prevent proxy clock-ins.</p>
 
-    <section class="content-grid webcam-grid">
-      <div class="card form-card accent-card">
-        <h2>Attendance Recognition</h2>
-        <p>Use an uploaded image or live webcam frame to verify attendance for the assigned worker.</p>
-        <form id="attendanceForm" enctype="multipart/form-data">
-          <input name="ward_name" placeholder="Ward name" required />
-          <input type="file" name="image" accept="image/*" />
-          <div class="webcam-block" data-webcam="attendance">
-            <video id="attendanceVideo" class="webcam-video" autoplay playsinline muted></video>
-            <canvas id="attendanceCanvas" class="webcam-canvas" width="640" height="480"></canvas>
-            <div class="webcam-actions">
-              <button type="button" class="ghost" data-start-camera="attendance">Start Camera</button>
-              <button type="button" class="ghost" data-capture-camera="attendance">Capture Frame</button>
-              <button type="button" class="ghost" data-clear-capture="attendance">Clear Capture</button>
+          <form id="attendanceForm" enctype="multipart/form-data">
+            <select name="ward_name" id="attendanceWardSelect" required>
+              <option value="">Select Ward</option>
+            </select>
+            <input type="file" name="image" accept="image/*" />
+
+            <div class="camera-preview-box">
+              <video id="attendanceVideo" class="webcam-video" autoplay playsinline muted></video>
+              <canvas id="attendanceCanvas" class="webcam-canvas" width="640" height="480"></canvas>
+            </div>
+            
+            <div class="btn-group">
+              <button type="button" class="btn btn-secondary btn-sm" data-start-camera="attendance">Start Camera</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-capture-camera="attendance">Snap Photo</button>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" style="margin-top: 10px;">Verify & Clock In</button>
+          </form>
+
+          <div id="attendanceResult" class="result-box-clean">Ready for face scan...</div>
+        </div>
+
+        <!-- STEP 2: ASSIGN WARD -->
+        <div class="step-card">
+          <div class="step-badge">STEP 2</div>
+          <h3>Assign Duty & Ward</h3>
+          <p>Assign verified cleaning personnel to a specific ward and dispatch shift alerts.</p>
+
+          <form id="quickAssignForm">
+            <label class="field-label">Select Staff Member</label>
+            <select id="quickAssignEmployeeSelect" required>
+              <option value="">Select Staff</option>
+            </select>
+
+            <label class="field-label">Assign to Ward</label>
+            <select id="quickAssignWardSelect" required>
+              <option value="">Select Target Ward</option>
+            </select>
+
+            <button type="submit" class="btn btn-primary btn-block" style="margin-top: 18px;">Assign Ward & Notify Worker</button>
+          </form>
+
+          <div id="assignResult" class="result-box-clean" style="margin-top: 18px;">Select cleaner and ward above.</div>
+
+          <div class="helper-note">
+            💡 When assigned, the worker is instantly notified via WhatsApp and task appears on their mobile portal.
+          </div>
+        </div>
+
+        <!-- STEP 3: LIVE WARD VIEW (CHECK IF WORKING) -->
+        <div class="step-card">
+          <div class="step-badge">STEP 3</div>
+          <h3>Live Ward Surveillance</h3>
+          <p>Monitor live camera feed to check whether the assigned worker is actively present.</p>
+
+          <div class="select-row">
+            <select id="liveViewWardSelect">
+              <option value="">Select Ward to Watch</option>
+            </select>
+          </div>
+
+          <div class="camera-preview-box live-stream-box">
+            <video id="liveWardVideo" class="webcam-video" autoplay playsinline muted></video>
+            <div class="live-overlay" id="presenceOverlay">
+              <span class="presence-badge" id="presenceBadge">Select ward to monitor</span>
             </div>
           </div>
-          <button type="submit">Verify Attendance</button>
-        </form>
-        <div id="attendanceResult" class="result-box"></div>
+
+          <div class="btn-group">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnStartLiveWard">Open Camera</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btnSimulatePresence">Toggle Worker Present / Away</button>
+          </div>
+
+          <div id="livePresenceDetails" class="result-box-clean" style="margin-top: 10px;">
+            Worker Presence: <strong>Not Connected</strong>
+          </div>
+        </div>
+
+        <!-- STEP 4: CLEANLINESS VERIFICATION -->
+        <div class="step-card">
+          <div class="step-badge">STEP 4</div>
+          <h3>Hygiene Audit (YOLOv8)</h3>
+          <p>Verify floor cleanliness post-cleaning. Detects debris, plastic, and dirt with instant pass/fail.</p>
+
+          <form id="inspectionForm" enctype="multipart/form-data">
+            <select name="ward_name" id="inspectionWardSelect" required>
+              <option value="">Select Ward to Inspect</option>
+            </select>
+            <input type="file" name="image" accept="image/*" />
+
+            <div class="camera-preview-box">
+              <video id="inspectionVideo" class="webcam-video" autoplay playsinline muted></video>
+              <canvas id="inspectionCanvas" class="webcam-canvas" width="640" height="480"></canvas>
+            </div>
+
+            <div class="btn-group">
+              <button type="button" class="btn btn-secondary btn-sm" data-start-camera="inspection">Start Camera</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-capture-camera="inspection">Snap Floor</button>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="btnSubmitInspection" style="margin-top: 10px;">Run Cleanliness Audit</button>
+          </form>
+
+          <div id="inspectionResult" class="result-box-clean">Ready for floor scan...</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- HOSPITAL WARDS GRID -->
+    <section class="wards-section">
+      <div class="section-title-row">
+        <div>
+          <h2>Hospital Wards Overview</h2>
+          <p>Real-time status of all hospital zones, current cleaners, and latest hygiene audits.</p>
+        </div>
+        <button class="btn btn-outline" onclick="loadAll()">🔄 Refresh Wards</button>
       </div>
 
-      <div class="card form-card accent-card alt">
-        <h2>Floor Inspection</h2>
-        <p>Use an uploaded floor image or live webcam frame. If waste is detected, the ward is marked <strong>Not Clean</strong> and alerts can be sent.</p>
-        <form id="inspectionForm" enctype="multipart/form-data">
-          <input name="ward_name" placeholder="Ward name" required />
-          <input name="employee_key" placeholder="Employee key (optional)" />
-          <textarea name="notes" placeholder="Notes"></textarea>
-          <input type="file" name="image" accept="image/*" />
-          <div class="webcam-block" data-webcam="inspection">
-            <video id="inspectionVideo" class="webcam-video" autoplay playsinline muted></video>
-            <canvas id="inspectionCanvas" class="webcam-canvas" width="640" height="480"></canvas>
-            <div class="webcam-actions">
-              <button type="button" class="ghost" data-start-camera="inspection">Start Camera</button>
-              <button type="button" class="ghost" data-capture-camera="inspection">Capture Frame</button>
-              <button type="button" class="ghost" data-clear-capture="inspection">Clear Capture</button>
+      <div class="wards-grid" id="wardsList"></div>
+    </section>
+
+    <!-- COLLAPSIBLE AUDIT LOGS & ADVANCED TELEMETRY -->
+    <section class="accordion-section">
+      <details class="accordion-item">
+        <summary>📑 Hospital Accreditation Compliance & Audit History</summary>
+        <div class="accordion-body">
+          <div class="compliance-stats-row" id="complianceStats"></div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Ward</th>
+                <th>Assigned Cleaner</th>
+                <th>Latest Status</th>
+                <th>Objects Found</th>
+                <th>Confidence</th>
+                <th>Override</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="inspectionHistoryBody"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <details class="accordion-item">
+        <summary>📡 Hospital IoT Telemetry (Smart Bins & Patient Beds)</summary>
+        <div class="accordion-body">
+          <p>Automated readings from dustbin fill sensors and bed proximity motion detectors:</p>
+          <div class="btn-group" style="margin-bottom: 14px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="triggerIoTSimulation('dustbin_level')">Test Bin Overflow (&gt;80%)</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="triggerIoTSimulation('bed_proximity')">Test Bed Sanitized</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="triggerIoTSimulation('uv_fluorescence')">Test UV Stain</button>
+          </div>
+          <div id="iotGaugesList" class="iot-grid"></div>
+        </div>
+      </details>
+
+      <details class="accordion-item">
+        <summary>👥 Staff Registry & Add New Ward</summary>
+        <div class="accordion-body">
+          <div class="content-grid">
+            <div class="card form-card">
+              <h3>Add New Hospital Ward</h3>
+              <form id="wardForm">
+                <input name="name" placeholder="Ward name (e.g. Pediatrics Wing)" required />
+                <input name="location" placeholder="Location (e.g. 2nd Floor, West)" />
+                <button type="submit" class="btn btn-primary">Add Ward</button>
+              </form>
+            </div>
+            <div class="card form-card">
+              <h3>Register New Cleaning Staff</h3>
+              <form id="employeeForm">
+                <input name="emp_key" placeholder="Staff key (unique, e.g. rahul)" required />
+                <input name="name" placeholder="Full name (e.g. Rahul Singh)" required />
+                <input name="designation" placeholder="Designation" />
+                <input name="phone" placeholder="WhatsApp phone (+91...)" />
+                <button type="submit" class="btn btn-primary">Register Staff</button>
+              </form>
             </div>
           </div>
-          <button type="submit">Analyze Floor</button>
-        </form>
-        <div id="inspectionResult" class="result-box"></div>
-      </div>
+          <div style="margin-top: 14px;">
+            <h4>Staff Mobile Portal Links:</h4>
+            <div id="workerLinksList" class="worker-chips"></div>
+          </div>
+        </div>
+      </details>
     </section>
 
-    <section class="content-grid">
-      <div class="card">
-        <div class="card-header">
-          <h2>Admin Ward Operations</h2>
-          <button class="ghost" onclick="loadAll()">Refresh</button>
-        </div>
-        <div id="wardsList" class="list-grid"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Worker Dashboard</h2>
-        </div>
-        <div class="worker-toolbar">
-          <select id="workerSelector"></select>
-          <button class="ghost" id="loadWorkerBtn">Load Worker View</button>
-        </div>
-        <div id="workerPanel" class="timeline"></div>
-      </div>
-    </section>
-
-    <section class="content-grid">
-      <div class="card">
-        <div class="card-header">
-          <h2>Recent Activity</h2>
-        </div>
-        <div id="historyList" class="timeline"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Workers</h2>
-        </div>
-        <div id="workersList" class="timeline"></div>
-      </div>
-    </section>
-
-    <section class="content-grid">
-      <div class="card">
-        <div class="card-header">
-          <h2>Face Dataset Quality</h2>
-          <button class="ghost" onclick="loadFaceQuality()">Refresh Report</button>
-        </div>
-        <div id="faceQuality" class="timeline"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Notification Mode</h2>
-        </div>
-        <div class="result-box" id="notificationMode">Loading configuration…</div>
-      </div>
-    </section>
   </div>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>

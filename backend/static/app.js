@@ -1,4 +1,4 @@
-﻿async function fetchJSON(url, options) {
+async function fetchJSON(url, options) {
   const response = await fetch(url, options);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Request failed');
@@ -8,387 +8,621 @@
 const webcamState = {
   attendance: { stream: null, blob: null },
   inspection: { stream: null, blob: null },
+  liveWard: { stream: null, isPresent: false },
 };
 
 const appState = {
   employees: [],
-  workers: [],
   wards: [],
+  selectedWardId: null,
 };
 
-function statusClass(status) {
-  const normalized = (status || 'Unknown').toLowerCase();
-  if (normalized.includes('clean') && !normalized.includes('not')) return 'status-clean';
-  if (normalized.includes('not') || normalized.includes('dirty')) return 'status-not-clean';
-  if (normalized.includes('mismatch') || normalized.includes('override')) return 'status-warning';
-  return 'status-unknown';
+// 1. Render Top Metrics
+function renderMetrics(overview) {
+  const row = document.getElementById('metricsRow');
+  const cleanCount = overview.clean_inspections || 0;
+  const notCleanCount = overview.not_clean_inspections || 0;
+  const totalInspections = cleanCount + notCleanCount;
+  const hygieneScore = totalInspections > 0 ? Math.round((cleanCount / totalInspections) * 100) : 100;
+
+  row.innerHTML = `
+    <div class="metric-box">
+      <div class="metric-value">${overview.total_wards || 0}</div>
+      <div class="metric-label">Hospital Wards Monitored</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value" style="color: var(--success);">${cleanCount}</div>
+      <div class="metric-label">Clean Verified Wards</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value">${overview.total_employees || 0}</div>
+      <div class="metric-label">Enrolled Cleaning Personnel</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-value" style="color: ${hygieneScore >= 80 ? 'var(--success)' : 'var(--danger)'};">${hygieneScore}%</div>
+      <div class="metric-label">Hospital Hygiene Pass Rate</div>
+    </div>
+  `;
 }
 
-function renderStats(overview) {
-  const stats = [
-    ['Wards', overview.total_wards],
-    ['Employees', overview.total_employees],
-    ['Clean', overview.clean_inspections],
-    ['Not Clean', overview.not_clean_inspections],
-    ['Attendance Mismatches', overview.attendance_mismatches],
-    ['Overrides', overview.overrides],
-  ];
-  document.getElementById('statsGrid').innerHTML = stats.map(([label, value]) => `<article class="card stat-card"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></article>`).join('');
+// 2. Populate Dropdowns across Steps
+function populateDropdowns(wards, employees) {
+  const attendanceSelect = document.getElementById('attendanceWardSelect');
+  const assignWardSelect = document.getElementById('quickAssignWardSelect');
+  const assignEmpSelect = document.getElementById('quickAssignEmployeeSelect');
+  const liveWardSelect = document.getElementById('liveViewWardSelect');
+  const inspectionSelect = document.getElementById('inspectionWardSelect');
+
+  const wardOpts = '<option value="">Select Ward</option>' + 
+    wards.map(w => `<option value="${w.id}" data-name="${w.name}">${w.name} (${w.location || 'Wing'})</option>`).join('');
+
+  const empOpts = '<option value="">Select Staff</option>' + 
+    employees.map(e => `<option value="${e.emp_key}">${e.name} (${e.designation || 'Staff'})</option>`).join('');
+
+  if (attendanceSelect) attendanceSelect.innerHTML = wardOpts;
+  if (assignWardSelect) assignWardSelect.innerHTML = wardOpts;
+  if (liveWardSelect) liveWardSelect.innerHTML = wardOpts;
+  if (inspectionSelect) inspectionSelect.innerHTML = wardOpts;
+  if (assignEmpSelect) assignEmpSelect.innerHTML = empOpts;
 }
 
-function employeeOptions(selectedValue = '') {
-  const options = ['<option value="">Unassigned</option>'];
-  for (const employee of appState.employees) {
-    const selected = employee.emp_key === selectedValue ? 'selected' : '';
-    options.push(`<option value="${employee.emp_key}" ${selected}>${employee.name} (${employee.emp_key})</option>`);
-  }
-  return options.join('');
-}
-
-function renderWards(wards) {
-  const list = document.getElementById('wardsList');
+// 3. Render Wards Overview Grid
+function renderWardsGrid(wards) {
+  const container = document.getElementById('wardsList');
   if (!wards.length) {
-    list.innerHTML = '<div class="meta">No wards added yet.</div>';
+    container.innerHTML = '<div class="meta">No wards configured yet.</div>';
     return;
   }
-  list.innerHTML = wards.map((ward) => {
-    const image = ward.latest_annotated_image ? `/inspections/${ward.latest_annotated_image.split('\\').pop()}` : '';
-    const latestObjectCount = ward.latest_object_count ?? 0;
+
+  container.innerHTML = wards.map(w => {
+    const isClean = (w.latest_status || '').toLowerCase().includes('clean') && !w.latest_status.toLowerCase().includes('not');
+    const isDirty = (w.latest_status || '').toLowerCase().includes('not') || (w.latest_status || '').toLowerCase().includes('dirty');
+    const statusClass = isClean ? 'clean' : (isDirty ? 'dirty' : 'pending');
+    const statusLabel = w.latest_status || 'Pending Check';
+
+    const hasWorker = Boolean(w.assigned_employee_key && w.assigned_employee_name);
+    const presenceLower = (w.worker_presence || '').toLowerCase();
+    const isWorking = hasWorker && (presenceLower.startsWith('active') || presenceLower.includes('working')) && !presenceLower.includes('inactive');
+
+    let presenceHTML = '';
+    if (!hasWorker) {
+      presenceHTML = '<span style="color: var(--text-muted); font-weight: 600;">⚪ Unassigned (No Staff)</span>';
+    } else if (isWorking) {
+      presenceHTML = '<span style="color: var(--success); font-weight: 700;">🟢 Working in Ward</span>';
+    } else {
+      presenceHTML = '<span style="color: var(--danger); font-weight: 700;">🔴 Away / Inactive</span>';
+    }
+
+    const image = w.latest_annotated_image ? `/inspections/${w.latest_annotated_image.split('\\').pop().split('/').pop()}` : '';
+
     return `
-      <article class="ward-item">
-        <div class="card-header">
-          <strong>${ward.name}</strong>
-          <span class="status-chip ${statusClass(ward.latest_status)}">${ward.latest_status || 'Unknown'}</span>
-        </div>
-        <div class="meta">Location: ${ward.location || ward.name}</div>
-        <div class="meta">Assigned worker: <span class="meta-strong">${ward.assigned_employee_name || ward.assigned_employee_key || 'Not assigned'}</span></div>
-        <div class="meta">Latest inspection: ${ward.latest_inspection_at || 'No inspections yet'}</div>
-        <div class="meta">Latest attendance: ${ward.latest_attendance_at || 'No attendance log'}</div>
-        <div class="meta">Latest object count: ${latestObjectCount}</div>
-        ${ward.overridden_status ? `<div class="meta">Override by ${ward.overridden_by || 'Admin'}: ${ward.overridden_status} ${ward.override_reason ? `| ${ward.override_reason}` : ''}</div>` : ''}
-        <div class="inline-form">
-          <select data-assign-select="${ward.id}">${employeeOptions(ward.assigned_employee_key || '')}</select>
-          <div class="action-row">
-            <button type="button" class="ghost" data-assign-ward="${ward.id}">Save Assignment</button>
-            <button type="button" class="warn" data-alert-absence="${ward.id}">Send Absence Alert</button>
+      <div class="ward-card">
+        <div class="ward-card-header">
+          <div>
+            <div class="ward-name">${w.name}</div>
+            <div class="ward-loc">${w.location || w.name}</div>
           </div>
+          <span class="status-pill ${statusClass}">${statusLabel}</span>
         </div>
-        ${ward.latest_inspection_id ? `
-          <div class="divider"></div>
-          <div class="inline-form">
-            <select data-override-status="${ward.latest_inspection_id}">
-              <option value="Clean">Override to Clean</option>
-              <option value="Not Clean">Override to Not Clean</option>
-            </select>
-            <input data-override-reason="${ward.latest_inspection_id}" placeholder="Override reason" />
-            <button type="button" class="danger" data-submit-override="${ward.latest_inspection_id}">Apply Override</button>
-          </div>
-        ` : ''}
-        ${image ? `<img class="preview-image" src="${image}" alt="Latest ward inspection" />` : ''}
-      </article>
+
+        <div class="ward-info-row">
+          <span>Assigned Staff:</span>
+          <strong>${w.assigned_employee_name || 'Unassigned'}</strong>
+        </div>
+
+        <div class="ward-info-row">
+          <span>Worker Presence:</span>
+          ${presenceHTML}
+        </div>
+
+        <div class="ward-info-row">
+          <span>Last Inspection:</span>
+          <span>${w.latest_inspection_at ? w.latest_inspection_at.split('T')[0] : 'None'}</span>
+        </div>
+
+        ${image ? `<img src="${image}" class="ward-preview-img" alt="Floor preview" />` : ''}
+
+        <div class="btn-group" style="margin-top: auto; padding-top: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="selectWardForLive('${w.id}')">Watch Live</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="quickAlertAbsence('${w.id}')">Alert Absence</button>
+          ${w.latest_inspection_id ? `
+            <button type="button" class="btn btn-outline btn-sm" onclick="quickOverride('${w.latest_inspection_id}', '${isClean ? 'Not Clean' : 'Clean'}')">
+              Override
+            </button>
+          ` : ''}
+        </div>
+      </div>
     `;
   }).join('');
 }
 
-function renderHistory(history) {
-  const timeline = document.getElementById('historyList');
-  const merged = [
-    ...history.notifications.map((item) => ({ type: 'notification', ...item })),
-    ...history.inspections.map((item) => ({ type: 'inspection', ...item })),
-    ...history.attendance.map((item) => ({ type: 'attendance', ...item })),
-    ...history.confirmations.map((item) => ({ type: 'confirmation', ...item })),
-  ].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, 18);
-
-  if (!merged.length) {
-    timeline.innerHTML = '<div class="meta">No activity yet.</div>';
-    return;
+// 4. Render Collapsible History & IoT
+function renderHistoryAndTelemetry(history, telemetry, employees) {
+  const histBody = document.getElementById('inspectionHistoryBody');
+  if (histBody && history.inspections) {
+    histBody.innerHTML = history.inspections.slice(0, 10).map(i => `
+      <tr>
+        <td><strong>${i.ward_name}</strong></td>
+        <td>${i.employee_key || 'Staff'}</td>
+        <td><span class="status-pill ${i.status.toLowerCase().includes('clean') && !i.status.toLowerCase().includes('not') ? 'clean' : 'dirty'}">${i.overridden_status || i.status}</span></td>
+        <td>${i.object_count} (${i.raw_label || 'None'})</td>
+        <td>${i.confidence ? (i.confidence * 100).toFixed(1) + '%' : 'N/A'}</td>
+        <td>${i.overridden_status ? 'Yes' : 'No'}</td>
+        <td>${i.created_at.replace('T', ' ').split('.')[0]}</td>
+      </tr>
+    `).join('');
   }
 
-  timeline.innerHTML = merged.map((item) => {
-    if (item.type === 'inspection') return `<article class="timeline-item"><strong>Inspection · ${item.ward_name}</strong><div class="meta">${item.status} | objects: ${item.object_count}</div><small>${item.created_at}</small></article>`;
-    if (item.type === 'attendance') return `<article class="timeline-item"><strong>Attendance · ${item.employee_key}</strong><div class="meta">Ward: ${item.ward_name} | assigned match: ${item.assigned_match === 0 ? 'No' : 'Yes'}</div><small>${item.created_at}</small></article>`;
-    if (item.type === 'confirmation') return `<article class="timeline-item"><strong>Worker Confirmation · ${item.employee_key}</strong><div class="meta">Ward: ${item.ward_name} | ${item.notes || ''}</div><small>${item.created_at}</small></article>`;
-    return `<article class="timeline-item"><strong>Notification · ${item.ward_name}</strong><div class="meta">${item.message}</div><small>${item.created_at}</small></article>`;
-  }).join('');
-}
-
-function renderWorkers(workers) {
-  const root = document.getElementById('workersList');
-  if (!workers.length) {
-    root.innerHTML = '<div class="meta">No workers found.</div>';
-    return;
-  }
-  root.innerHTML = workers.map((worker) => `
-    <article class="timeline-item">
-      <strong>${worker.name}</strong>
-      <div class="meta">${worker.designation || 'Unknown role'} | ${worker.emp_key}</div>
-      <div class="meta">Assigned wards: ${worker.assigned_ward_count}</div>
-      <div class="meta">Last attendance: ${worker.last_attendance_at || 'No record yet'}</div>
-      <div class="meta">Last confirmation: ${worker.last_confirmation_at || 'No confirmation yet'}</div>
-      <div class="action-row">
-        <a class="ghost" href="/worker/${worker.emp_key}" target="_blank">Open Worker Page</a>
+  const iotContainer = document.getElementById('iotGaugesList');
+  if (iotContainer && telemetry.summary) {
+    iotContainer.innerHTML = telemetry.summary.map(s => `
+      <div class="iot-box">
+        <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 13px;">
+          <span>${s.ward_name} (${s.sensor_type.replace('_', ' ').toUpperCase()})</span>
+          <span>${s.metric_value.toFixed(1)} ${s.unit}</span>
+        </div>
+        <div class="meter-bar">
+          <div class="meter-fill ${s.metric_value >= 80 ? 'danger' : ''}" style="width: ${Math.min(s.metric_value, 100)}%;"></div>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Status: ${s.status}</div>
       </div>
-    </article>
-  `).join('');
+    `).join('');
+  }
+
+  const chipsContainer = document.getElementById('workerLinksList');
+  if (chipsContainer) {
+    if (!employees || employees.length === 0) {
+      chipsContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Zero workers registered. Run <code>python scripts\\enroll_face.py</code> to record new face biometrics.</div>';
+    } else {
+      chipsContainer.innerHTML = employees.map(e => `
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: #fff; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; margin: 4px;">
+          <a href="/worker/${e.emp_key}" target="_blank" style="text-decoration: none; color: var(--primary); font-weight: 600; font-size: 13px;">
+            📱 ${e.name} (${e.designation || 'Staff'})
+          </a>
+          <button onclick="deleteWorker('${e.emp_key}')" style="background: none; border: none; cursor: pointer; color: var(--danger); font-size: 14px; padding: 0 4px;" title="Delete worker & face data">✕</button>
+        </div>
+      `).join('');
+    }
+  }
 }
 
-function populateWorkerSelector() {
-  const selector = document.getElementById('workerSelector');
-  selector.innerHTML = appState.workers.map((worker) => `<option value="${worker.emp_key}">${worker.name} (${worker.emp_key})</option>`).join('');
-}
+// 5. STEP 1: Attendance Verification
+document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const resBox = document.getElementById('attendanceResult');
+  const select = document.getElementById('attendanceWardSelect');
+  const wardName = select.options[select.selectedIndex]?.dataset?.name || select.value;
 
-function renderWorkerPanel(payload) {
-  const root = document.getElementById('workerPanel');
-  if (!payload || !payload.worker) {
-    root.innerHTML = '<div class="meta">Choose a worker to load assigned wards.</div>';
+  const formData = new FormData(e.target);
+  formData.set('ward_name', wardName);
+  if (webcamState.attendance.blob) {
+    formData.set('image', webcamState.attendance.blob, 'face.jpg');
+  }
+
+  resBox.innerHTML = '<div class="spinner">Scanning facial biometric features...</div>';
+  try {
+    const res = await fetchJSON('/api/attendance/recognize', { method: 'POST', body: formData });
+    if (res.matched) {
+      resBox.innerHTML = `
+<strong style="color: var(--success);">✅ Verified: ${res.name}</strong>
+Role: ${res.designation || 'Staff'} | Confidence: ${(res.confidence * 100).toFixed(1)}%
+Status: Clocked in for ${wardName}
+      `;
+      // Pre-select staff in Step 2
+      const quickEmpSelect = document.getElementById('quickAssignEmployeeSelect');
+      if (quickEmpSelect) quickEmpSelect.value = res.employee_key;
+    } else {
+      resBox.innerHTML = `<strong style="color: var(--danger);">❌ Verification Failed:</strong> ${res.message}`;
+    }
+    loadAll();
+  } catch (err) {
+    resBox.innerHTML = `<span style="color: var(--danger);">Error: ${err.message}</span>`;
+  }
+});
+
+// 6. STEP 2: Quick Assignment
+document.getElementById('quickAssignForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const resBox = document.getElementById('assignResult');
+  const empKey = document.getElementById('quickAssignEmployeeSelect').value;
+  const wardSelect = document.getElementById('quickAssignWardSelect');
+  const wardId = wardSelect.value;
+  const wardName = wardSelect.options[wardSelect.selectedIndex]?.dataset?.name || 'Selected Ward';
+
+  if (!empKey || !wardId) {
+    alert('Please select both staff member and target ward');
     return;
   }
-  const cards = payload.assigned_wards.map((ward) => `
-    <article class="timeline-item">
-      <strong>${ward.name}</strong>
-      <div class="meta">Status: ${ward.latest_status || 'No inspection yet'}</div>
-      <div class="meta">Last attendance: ${ward.latest_attendance_at || 'No record'}</div>
-      <div class="meta">Last confirmation: ${ward.last_confirmation_at || 'No confirmation'}</div>
-      <div class="meta">Objects detected: ${ward.latest_object_count ?? 0}</div>
-      <button type="button" class="ghost" data-confirm-task="${ward.name}" data-confirm-worker="${payload.worker.emp_key}">Confirm Cleaning Complete</button>
-    </article>
-  `).join('');
-  root.innerHTML = `
-    <article class="timeline-item">
-      <strong>${payload.worker.name}</strong>
-      <div class="meta">${payload.worker.designation || 'Unknown role'} | ${payload.worker.emp_key}</div>
-      <div class="meta">Assigned wards: ${payload.assigned_wards.length}</div>
-    </article>
-    ${cards || '<div class="meta">This worker has no assigned wards.</div>'}
+
+  resBox.innerHTML = '<div class="spinner">Assigning ward & sending WhatsApp notification...</div>';
+  try {
+    const res = await fetchJSON(`/api/wards/${wardId}/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employee_key: empKey, admin_name: 'Hospital Admin' })
+    });
+
+    resBox.innerHTML = `
+<strong style="color: var(--success);">✅ Assignment Complete!</strong>
+Staff: <strong>${empKey}</strong> assigned to <strong>${wardName}</strong>.
+WhatsApp alert dispatched. Status set to: "Cleaning In Progress".
+    `;
+    
+    // Automatically switch Step 3 to watch this newly assigned ward!
+    selectWardForLive(wardId);
+    loadAll();
+  } catch (err) {
+    resBox.innerHTML = `<span style="color: var(--danger);">Assignment error: ${err.message}</span>`;
+  }
+});
+
+// 7. STEP 3: Live Ward Surveillance & Automated Real-Time Presence
+let livePresenceTrackerTimer = null;
+let isProbingPresence = false;
+
+function startLivePresenceTracker() {
+  if (livePresenceTrackerTimer) clearInterval(livePresenceTrackerTimer);
+
+  livePresenceTrackerTimer = setInterval(async () => {
+    const select = document.getElementById('liveViewWardSelect');
+    const wardId = select ? select.value : null;
+    const video = document.getElementById('liveWardVideo');
+    if (!wardId || !video || video.readyState < 2 || isProbingPresence) return;
+
+    isProbingPresence = true;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 320;
+      canvas.height = 240;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, 320, 240);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          isProbingPresence = false;
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('frame', blob, 'frame.jpg');
+
+        try {
+          const res = await fetchJSON(`/api/wards/${wardId}/detect-presence`, {
+            method: 'POST',
+            body: formData
+          });
+
+          const badge = document.getElementById('presenceBadge');
+          const details = document.getElementById('livePresenceDetails');
+
+          if (badge) {
+            if (res.is_present) {
+              badge.className = 'presence-badge presence-active';
+              badge.textContent = res.worker_match
+                ? `🟢 ACTIVE: ${res.recognized_name || 'Worker'} Present in Ward`
+                : '🟢 ACTIVE: Worker Present in Ward';
+            } else {
+              badge.className = 'presence-badge presence-away';
+              badge.textContent = '🔴 AWAY: Ward Unattended (Worker Not in Frame)';
+            }
+          }
+
+          if (details) {
+            details.innerHTML = `
+Ward: <strong>${res.ward_name}</strong> &bull; Assigned: <strong>${res.assigned_employee_name || 'None'}</strong><br>
+Status: <strong style="color: ${res.is_present ? 'var(--success)' : 'var(--danger)'};">${res.is_present ? 'Active Cleaning in Progress' : 'No Worker Detected in Frame'}</strong><br>
+Real-Time AI Surveillance: <em>${res.is_present ? (res.worker_match ? 'Assigned Worker Verified in Frame' : 'Person Detected on Camera') : 'Camera Active — Worker Out of View'}</em>
+            `;
+          }
+
+          const w = appState.wards.find(item => String(item.id) === String(wardId));
+          if (w) {
+            w.worker_presence = res.worker_presence;
+            w.last_presence_at = res.last_presence_at;
+          }
+        } catch (apiErr) {
+          // Frame drop ignored
+        } finally {
+          isProbingPresence = false;
+        }
+      }, 'image/jpeg', 0.65);
+    } catch (err) {
+      isProbingPresence = false;
+    }
+  }, 1200);
+}
+
+function selectWardForLive(wardId) {
+  const select = document.getElementById('liveViewWardSelect');
+  if (select) select.value = wardId;
+  updateLiveWardPresenceView();
+}
+
+async function updateLiveWardPresenceView() {
+  const select = document.getElementById('liveViewWardSelect');
+  const wardId = select.value;
+  const badge = document.getElementById('presenceBadge');
+  const details = document.getElementById('livePresenceDetails');
+
+  if (!wardId) {
+    badge.className = 'presence-badge';
+    badge.textContent = 'Select ward to monitor';
+    details.innerHTML = 'Worker Presence: <strong>Not Connected</strong>';
+    return;
+  }
+
+  const ward = appState.wards.find(w => String(w.id) === String(wardId));
+  if (!ward) return;
+
+  const hasWorker = Boolean(ward.assigned_employee_key && ward.assigned_employee_name);
+  const presenceLower = (ward.worker_presence || '').toLowerCase();
+  const isWorking = hasWorker && (presenceLower.startsWith('active') || presenceLower.includes('working')) && !presenceLower.includes('inactive');
+
+  if (!hasWorker) {
+    badge.className = 'presence-badge presence-away';
+    badge.textContent = '⚪ UNASSIGNED: No Staff Assigned';
+  } else if (isWorking) {
+    badge.className = 'presence-badge presence-active';
+    badge.textContent = '🟢 ACTIVE: Worker Present in Ward';
+  } else {
+    badge.className = 'presence-badge presence-away';
+    badge.textContent = '🔴 AWAY: Ward Unattended';
+  }
+
+  details.innerHTML = `
+Ward: <strong>${ward.name}</strong> &bull; Assigned: <strong>${ward.assigned_employee_name || 'Unassigned'}</strong><br>
+Status: <strong style="color: ${hasWorker ? (isWorking ? 'var(--success)' : 'var(--danger)') : 'var(--text-muted)'};">
+  ${hasWorker ? (isWorking ? 'Active Cleaning in Progress' : 'No Worker Detected in Ward') : 'No Staff Assigned to this Ward'}
+</strong><br>
+Last Activity Log: ${ward.last_presence_at ? ward.last_presence_at.replace('T', ' ').split('.')[0] : 'None recorded'}
   `;
 }
 
-function renderFaceQuality(payload) {
-  const root = document.getElementById('faceQuality');
-  const rows = payload.report?.labels || [];
-  if (!rows.length) {
-    root.innerHTML = '<div class="meta">No face-quality report available yet.</div>';
-    return;
+document.getElementById('liveViewWardSelect').addEventListener('change', () => {
+  updateLiveWardPresenceView();
+  if (webcamState.liveWard.stream) {
+    startLivePresenceTracker();
   }
-  root.innerHTML = rows.map((row) => `
-    <article class="timeline-item">
-      <strong>${row.employee_key}</strong>
-      <div class="meta">Samples: ${row.sample_count} | Accuracy: ${(row.leave_one_out_accuracy * 100).toFixed(1)}%</div>
-      <div class="meta">Closest rival: ${row.closest_rival || 'None'} | Separation: ${row.closest_rival_distance ?? 'n/a'}</div>
-      <span class="dataset-pill">${row.status}</span>
-    </article>
-  `).join('');
-}
-
-function setResult(el, payload) {
-  el.textContent = JSON.stringify(payload, null, 2);
-}
-
-async function startCamera(kind) {
-  const video = document.getElementById(`${kind}Video`);
-  if (webcamState[kind].stream) return;
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-  webcamState[kind].stream = stream;
-  video.srcObject = stream;
-}
-
-function stopCamera(kind) {
-  const stream = webcamState[kind].stream;
-  if (!stream) return;
-  stream.getTracks().forEach((track) => track.stop());
-  webcamState[kind].stream = null;
-}
-
-async function captureFrame(kind) {
-  const video = document.getElementById(`${kind}Video`);
-  const canvas = document.getElementById(`${kind}Canvas`);
-  const ctx = canvas.getContext('2d');
-  if (!video.srcObject) {
-    await startCamera(kind);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-  }
-  canvas.width = video.videoWidth || 640;
-  canvas.height = video.videoHeight || 480;
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  canvas.classList.add('has-frame');
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-  webcamState[kind].blob = blob;
-}
-
-function clearCapture(kind) {
-  webcamState[kind].blob = null;
-  document.getElementById(`${kind}Canvas`).classList.remove('has-frame');
-}
-
-function appendImageToForm(formData, form, kind) {
-  const fileInput = form.querySelector('input[type="file"][name="image"]');
-  const file = fileInput?.files?.[0];
-  if (file) {
-    formData.set('image', file);
-    return true;
-  }
-  const blob = webcamState[kind].blob;
-  if (blob) {
-    formData.set('image', blob, `${kind}_capture.jpg`);
-    return true;
-  }
-  return false;
-}
-
-function wireWebcamButtons() {
-  document.querySelectorAll('[data-start-camera]').forEach((button) => {
-    button.addEventListener('click', async () => startCamera(button.dataset.startCamera));
-  });
-  document.querySelectorAll('[data-capture-camera]').forEach((button) => {
-    button.addEventListener('click', async () => captureFrame(button.dataset.captureCamera));
-  });
-  document.querySelectorAll('[data-clear-capture]').forEach((button) => {
-    button.addEventListener('click', () => clearCapture(button.dataset.clearCapture));
-  });
-}
-
-async function loadWorkerDashboard(empKey) {
-  if (!empKey) {
-    renderWorkerPanel(null);
-    return;
-  }
-  const payload = await fetchJSON(`/api/workers/${empKey}/dashboard`);
-  renderWorkerPanel(payload);
-}
-
-function attachForms() {
-  document.getElementById('wardForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await fetchJSON('/api/wards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(form.entries())) });
-    event.currentTarget.reset();
-    loadAll();
-  });
-
-  document.getElementById('employeeForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await fetchJSON('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(form.entries())) });
-    event.currentTarget.reset();
-    loadAll();
-  });
-
-  document.getElementById('attendanceForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    if (!appendImageToForm(formData, form, 'attendance')) throw new Error('Choose an image or capture a webcam frame first.');
-    const result = await fetchJSON('/api/attendance/recognize', { method: 'POST', body: formData });
-    setResult(document.getElementById('attendanceResult'), result);
-    loadAll();
-  });
-
-  document.getElementById('inspectionForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    if (!appendImageToForm(formData, form, 'inspection')) throw new Error('Choose an image or capture a webcam frame first.');
-    const result = await fetchJSON('/api/inspection/analyze', { method: 'POST', body: formData });
-    const resultBox = document.getElementById('inspectionResult');
-    setResult(resultBox, result);
-    if (result.annotated_image) {
-      const filename = result.annotated_image.split('\\').pop();
-      resultBox.innerHTML += `\n\n<img class="preview-image" src="/inspections/${filename}" alt="inspection result" />`;
-    }
-    loadAll();
-  });
-
-  document.getElementById('loadWorkerBtn').addEventListener('click', async () => {
-    await loadWorkerDashboard(document.getElementById('workerSelector').value);
-  });
-}
-
-function wireDelegatedActions() {
-  document.addEventListener('click', async (event) => {
-    const assignWardId = event.target.dataset.assignWard;
-    const alertWardId = event.target.dataset.alertAbsence;
-    const overrideId = event.target.dataset.submitOverride;
-    const confirmWard = event.target.dataset.confirmTask;
-
-    if (assignWardId) {
-      const selector = document.querySelector(`[data-assign-select="${assignWardId}"]`);
-      await fetchJSON(`/api/wards/${assignWardId}/assign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employee_key: selector.value, admin_name: 'Dashboard Admin' }),
-      });
-      loadAll();
-    }
-
-    if (alertWardId) {
-      await fetchJSON(`/api/wards/${alertWardId}/alert-absence`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'Assigned worker absent from ward check.' }),
-      });
-      loadAll();
-    }
-
-    if (overrideId) {
-      const status = document.querySelector(`[data-override-status="${overrideId}"]`).value;
-      const reason = document.querySelector(`[data-override-reason="${overrideId}"]`).value;
-      await fetchJSON(`/api/inspection/${overrideId}/override`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, reason, admin_name: 'Dashboard Admin' }),
-      });
-      loadAll();
-    }
-
-    if (confirmWard) {
-      const employeeKey = event.target.dataset.confirmWorker;
-      const notes = window.prompt(`Add an optional note for ${confirmWard}:`, 'Cleaning completed and ready for inspection.') || 'Cleaning completed and ready for inspection.';
-      await fetchJSON('/api/tasks/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ward_name: confirmWard, employee_key: employeeKey, notes }),
-      });
-      loadAll();
-      await loadWorkerDashboard(employeeKey);
-    }
-  });
-}
-
-async function loadFaceQuality() {
-  const payload = await fetchJSON('/api/face/quality');
-  renderFaceQuality(payload);
-}
-
-async function loadNotificationMode() {
-  const payload = await fetchJSON('/api/config/notifications');
-  document.getElementById('notificationMode').textContent = JSON.stringify(payload, null, 2);
-}
-
-async function loadAll() {
-  const [overview, wardsPayload, history, employeesPayload, workersPayload] = await Promise.all([
-    fetchJSON('/api/overview'),
-    fetchJSON('/api/wards'),
-    fetchJSON('/api/history'),
-    fetchJSON('/api/employees'),
-    fetchJSON('/api/workers'),
-  ]);
-  appState.wards = wardsPayload.wards;
-  appState.employees = employeesPayload.employees;
-  appState.workers = workersPayload.workers;
-  renderStats(overview);
-  renderWards(appState.wards);
-  renderHistory(history);
-  renderWorkers(appState.workers);
-  populateWorkerSelector();
-  await loadFaceQuality();
-  await loadNotificationMode();
-}
-
-wireWebcamButtons();
-attachForms();
-wireDelegatedActions();
-loadAll().catch((error) => {
-  console.error(error);
-  document.getElementById('notificationMode').textContent = `Dashboard load failed: ${error.message}`;
 });
-window.addEventListener('beforeunload', () => Object.keys(webcamState).forEach(stopCamera));
+
+document.getElementById('btnStartLiveWard').addEventListener('click', async () => {
+  const video = document.getElementById('liveWardVideo');
+  const btn = document.getElementById('btnStartLiveWard');
+
+  if (webcamState.liveWard.stream) {
+    webcamState.liveWard.stream.getTracks().forEach(t => t.stop());
+    webcamState.liveWard.stream = null;
+    video.srcObject = null;
+    if (livePresenceTrackerTimer) clearInterval(livePresenceTrackerTimer);
+    btn.textContent = 'Open Camera';
+    updateLiveWardPresenceView();
+    return;
+  }
+
+  try {
+    webcamState.liveWard.stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = webcamState.liveWard.stream;
+    btn.textContent = '🟢 Camera Streaming (Live AI)';
+    startLivePresenceTracker();
+  } catch (e) {
+    alert(`Camera permission denied: ${e.message}`);
+  }
+});
+
+document.getElementById('btnSimulatePresence').addEventListener('click', async () => {
+  const select = document.getElementById('liveViewWardSelect');
+  const wardId = select.value;
+  if (!wardId) return alert('Select a ward first');
+
+  webcamState.liveWard.isPresent = !webcamState.liveWard.isPresent;
+  const res = await fetchJSON(`/api/wards/${wardId}/presence`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_present: webcamState.liveWard.isPresent })
+  });
+
+  const ward = appState.wards.find(w => String(w.id) === String(wardId));
+  if (ward) {
+    ward.worker_presence = res.worker_presence;
+  }
+  updateLiveWardPresenceView();
+});
+
+// 8. STEP 4: Asynchronous Floor Inspection (Clean/Not Clean)
+document.getElementById('inspectionForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const resBox = document.getElementById('inspectionResult');
+  const submitBtn = document.getElementById('btnSubmitInspection');
+  const select = document.getElementById('inspectionWardSelect');
+  const wardName = select.options[select.selectedIndex]?.dataset?.name || select.value;
+
+  const formData = new FormData(e.target);
+  formData.set('ward_name', wardName);
+  if (webcamState.inspection.blob) {
+    formData.set('image', webcamState.inspection.blob, 'floor.jpg');
+  }
+
+  try {
+    submitBtn.disabled = true;
+    resBox.innerHTML = '<div class="spinner">Scanning floor for waste & contaminants (YOLOv8)...</div>';
+
+    // 1. Submit (Immediate 202 Accepted)
+    const initial = await fetchJSON('/api/inspection/analyze', { method: 'POST', body: formData });
+    const inspectionId = initial.inspection_id;
+
+    // 2. Poll until background forward-pass completes
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetchJSON(`/api/inspection/${inspectionId}/status`);
+        if (res.complete) {
+          clearInterval(pollInterval);
+          submitBtn.disabled = false;
+
+          const isClean = res.status === 'Clean';
+          resBox.innerHTML = `
+<div style="font-size: 14px; font-weight: 800; color: ${isClean ? 'var(--success)' : 'var(--danger)'};">
+  ${isClean ? '✅ PASSED: Floor Clean & Sanitary' : '❌ UNCLEAN: Waste / Debris Localized'}
+</div>
+<div style="margin-top: 4px; color: var(--text-muted);">
+  Findings: ${res.object_found ? `${res.object_count} item(s) (${res.raw_label})` : 'Zero Contaminants Found'}<br>
+  Confidence: ${res.confidence ? (res.confidence * 100).toFixed(1) + '%' : '100% Floor Clarity'}<br>
+  Audit ID: #${res.inspection_id} &bull; Timestamp: ${res.created_at.split('T')[1].slice(0, 5)}
+</div>
+${res.annotated_image_url ? `<img src="${res.annotated_image_url}" style="width: 100%; border-radius: 8px; margin-top: 8px;" />` : ''}
+          `;
+          loadAll();
+        }
+      } catch (pollErr) {
+        clearInterval(pollInterval);
+        submitBtn.disabled = false;
+        resBox.textContent = `Polling error: ${pollErr.message}`;
+      }
+    }, 800);
+
+  } catch (err) {
+    submitBtn.disabled = false;
+    resBox.textContent = `Inspection error: ${err.message}`;
+  }
+});
+
+// Quick Action Helpers
+async function quickAlertAbsence(wardId) {
+  if (!confirm('Dispatch absence alert for this ward?')) return;
+  await fetchJSON(`/api/wards/${wardId}/alert-absence`, { method: 'POST' });
+  alert('Absence notification dispatched to worker and supervisor.');
+  loadAll();
+}
+
+async function quickOverride(inspectionId, newStatus) {
+  const reason = prompt(`Enter supervisor rationale to override status to ${newStatus}:`, 'Visual supervisor confirmation');
+  if (!reason) return;
+  await fetchJSON(`/api/inspection/${inspectionId}/override`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: newStatus, reason: reason, admin_name: 'Lead Supervisor' })
+  });
+  loadAll();
+}
+
+async function triggerIoTSimulation(sensorType) {
+  await fetchJSON('/api/iot/simulate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sensor_type: sensorType, ward_name: 'Emergency' })
+  });
+  alert(`Simulated ${sensorType} sensor event transmitted!`);
+  loadAll();
+}
+
+async function deleteWorker(empKey) {
+  if (!confirm(`Are you sure you want to delete worker "${empKey}" and their biometric face data?`)) return;
+  try {
+    await fetchJSON(`/api/employees/${empKey}`, { method: 'DELETE' });
+    alert(`Worker "${empKey}" deleted successfully.`);
+    loadAll();
+  } catch (err) {
+    alert(`Error deleting worker: ${err.message}`);
+  }
+}
+window.deleteWorker = deleteWorker;
+
+// Live Toast Poller
+async function pollToast() {
+  try {
+    const data = await fetchJSON('/api/notifications/live');
+    if (data.feed && data.feed.length > 0) {
+      const top = data.feed[0];
+      const toastEl = document.getElementById('liveToastText');
+      if (toastEl) toastEl.textContent = `[${top.ward_name}] ${top.message}`;
+    }
+  } catch (e) {}
+}
+setInterval(pollToast, 3000);
+
+// Camera Setup
+function setupWebcam(type) {
+  const video = document.getElementById(`${type}Video`);
+  const canvas = document.getElementById(`${type}Canvas`);
+  if (!video || !canvas) return;
+
+  const startBtn = document.querySelector(`[data-start-camera="${type}"]`);
+  const snapBtn = document.querySelector(`[data-capture-camera="${type}"]`);
+
+  if (startBtn) {
+    startBtn.onclick = async () => {
+      try {
+        webcamState[type].stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = webcamState[type].stream;
+      } catch (e) {
+        alert(`Camera access denied: ${e.message}`);
+      }
+    };
+  }
+
+  if (snapBtn) {
+    snapBtn.onclick = () => {
+      if (!webcamState[type].stream) return alert('Please start camera first');
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.classList.add('has-frame');
+      canvas.toBlob((blob) => {
+        webcamState[type].blob = blob;
+      }, 'image/jpeg');
+    };
+  }
+}
+
+// Main Loader
+async function loadAll() {
+  try {
+    const [overview, wards, employees, history, telemetry] = await Promise.all([
+      fetchJSON('/api/overview'),
+      fetchJSON('/api/wards'),
+      fetchJSON('/api/employees'),
+      fetchJSON('/api/history'),
+      fetchJSON('/api/iot/summary'),
+    ]);
+
+    appState.employees = employees.employees;
+    appState.wards = wards.wards;
+
+    renderMetrics(overview);
+    populateDropdowns(wards.wards, employees.employees);
+    renderWardsGrid(wards.wards);
+    renderHistoryAndTelemetry(history, telemetry, employees.employees);
+  } catch (err) {
+    console.error('Failed to load dashboard:', err);
+  }
+}
+
+// Setup Form Listeners for Add Ward & Add Employee
+document.getElementById('wardForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  await fetchJSON('/api/wards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.fromEntries(formData.entries()))
+  });
+  e.target.reset();
+  alert('Ward added successfully!');
+  loadAll();
+});
+
+document.getElementById('employeeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  await fetchJSON('/api/employees', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.fromEntries(formData.entries()))
+  });
+  e.target.reset();
+  alert('Staff registered successfully!');
+  loadAll();
+});
+
+// Initialize
+setupWebcam('attendance');
+setupWebcam('inspection');
+loadAll();

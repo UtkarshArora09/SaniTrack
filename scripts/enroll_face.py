@@ -35,6 +35,20 @@ sample_every = 6
 skip = 0
 face_data = []
 
+gui_available = True
+
+def safe_show(win_name, img):
+    global gui_available
+    if not gui_available:
+        return
+    try:
+        cv2.imshow(win_name, img)
+        return cv2.waitKey(1) & 0xFF
+    except Exception:
+        gui_available = False
+        print("\nNote: Graphical window display unavailable. Capturing directly from webcam in terminal mode...")
+        return 0
+
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -42,8 +56,8 @@ while True:
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5, minSize=(60, 60))
     if len(faces) == 0:
-        cv2.imshow('SaniTrack Face Capture', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        key = safe_show('SaniTrack Face Capture', frame)
+        if key == ord('q'):
             break
         continue
 
@@ -57,18 +71,25 @@ while True:
     skip += 1
     if skip % sample_every == 0:
         face_data.append(face_selection)
+        pct = int((len(face_data) / max_new_samples) * 100)
+        print(f"\rCapturing biometric samples for {raw_name}: {len(face_data)}/{max_new_samples} [{pct}%]...", end="", flush=True)
 
     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
     cv2.putText(frame, f'{raw_name} {len(face_data)}/{max_new_samples}', (x, max(y - 10, 20)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-    cv2.imshow('SaniTrack Face Capture', frame)
+    key = safe_show('SaniTrack Face Capture', frame)
 
     if len(face_data) >= max_new_samples:
         break
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if key == ord('q'):
         break
 
 cap.release()
-cv2.destroyAllWindows()
+if gui_available:
+    try:
+        cv2.destroyAllWindows()
+    except Exception:
+        pass
+print()
 
 if not face_data:
     raise SystemExit('No samples captured.')
@@ -84,9 +105,38 @@ np.save(save_path, merged)
 
 employees = {}
 if EMPLOYEES_JSON.exists():
-    employees = json.loads(EMPLOYEES_JSON.read_text(encoding='utf-8'))
+    try:
+        employees = json.loads(EMPLOYEES_JSON.read_text(encoding='utf-8'))
+    except Exception:
+        employees = {}
 employees[file_key] = {'name': raw_name, 'designation': designation, 'phone': phone}
 EMPLOYEES_JSON.write_text(json.dumps(employees, indent=2), encoding='utf-8')
 
-print(f'Added {len(face_data)} new samples to {save_path}')
-print(f'Total samples for {file_key}: {merged.shape[0]}')
+# Synchronize directly with SQLite sanitrack.db
+db_path = BASE_DIR / 'data' / 'sanitrack.db'
+if db_path.exists():
+    try:
+        import sqlite3
+        from datetime import datetime, timezone
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO employees (emp_key, name, designation, phone, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(emp_key) DO UPDATE SET
+                name = excluded.name,
+                designation = excluded.designation,
+                phone = excluded.phone
+            """,
+            (file_key, raw_name, designation, phone, datetime.now(timezone.utc).isoformat())
+        )
+        conn.commit()
+        conn.close()
+        print(f'Synchronized "{raw_name}" into SQLite database (sanitrack.db).')
+    except Exception as db_err:
+        print(f'Warning: SQLite update error: {db_err}')
+
+print(f'\nSUCCESS: Enrolled "{raw_name}" ({file_key})!')
+print(f'Face vector samples: {merged.shape[0]} stored in {save_path.name}')
+print('SaniTrack dashboard will immediately recognize this worker for attendance and shift assignment.')
