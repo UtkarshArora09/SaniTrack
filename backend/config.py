@@ -26,6 +26,7 @@ APP_DEBUG = os.getenv('SANITRACK_DEBUG', 'false').lower() == 'true'
 # Free Notification Providers (Telegram, Discord, CallMeBot)
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+WORKER_TELEGRAM_CHAT_ID = os.getenv('WORKER_TELEGRAM_CHAT_ID')
 
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
 

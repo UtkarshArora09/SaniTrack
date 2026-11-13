@@ -102,7 +102,12 @@ def assign_ward(ward_id):
         else:
             message = f"{ward['name']} assigned to {employee['name']} by {admin_name}."
             
-        notifications = notify_targets(ward['name'], message, employee_phone=employee.get('phone'))
+        notifications = notify_targets(
+            ward['name'],
+            message,
+            employee_phone=employee.get('phone'),
+            employee_chat_id=employee.get('telegram_chat_id')
+        )
     else:
         message = f"{ward['name']} assignment cleared by {admin_name}."
         notifications = [record_notification(ward['name'], message, channel='assignment', delivery_status='logged')]
@@ -128,7 +133,12 @@ def alert_absence(ward_id):
 
     reason = (data.get('reason') or 'Assigned worker absent during scheduled cleaning window.').strip()
     message = f"{ward['name']} Urgent: {reason}"
-    notifications = notify_targets(ward['name'], message, employee_phone=employee.get('phone'))
+    notifications = notify_targets(
+        ward['name'],
+        message,
+        employee_phone=employee.get('phone'),
+        employee_chat_id=employee.get('telegram_chat_id')
+    )
     return jsonify({'status': 'sent', 'notifications': notifications})
 
 

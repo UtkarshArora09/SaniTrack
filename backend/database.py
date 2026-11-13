@@ -46,9 +46,12 @@ def init_db():
         name TEXT NOT NULL,
         designation TEXT,
         phone TEXT,
+        telegram_chat_id TEXT,
         created_at TEXT NOT NULL
     )
     ''')
+    _ensure_column(cur, 'employees', 'telegram_chat_id', 'TEXT')
+
 
     # 3. Wards Table
     cur.execute('''

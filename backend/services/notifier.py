@@ -20,13 +20,14 @@ def _is_valid_e164(phone_number):
 
 
 # 1. Telegram Bot (100% Free Forever)
-def _send_telegram(message):
-    if not (config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID):
+def _send_telegram(message, chat_id=None):
+    target_chat = chat_id or config.TELEGRAM_CHAT_ID
+    if not (config.TELEGRAM_BOT_TOKEN and target_chat):
         return {'sent': False, 'reason': 'telegram-not-configured'}
     try:
         url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
         payload = {
-            'chat_id': config.TELEGRAM_CHAT_ID,
+            'chat_id': target_chat,
             'text': f"🏥 *SaniTrack Hospital Alert*\n{message}",
             'parse_mode': 'Markdown'
         }
@@ -96,16 +97,37 @@ def record_notification(ward_name, message, channel='dashboard', delivery_status
     return event
 
 
-def notify_targets(ward_name, message, employee_phone=None):
+def notify_targets(ward_name, message, employee_phone=None, employee_chat_id=None):
     outcomes = []
     dispatched_any = False
 
-    # 1. Try Telegram (Free)
-    if config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID:
-        tg_res = _send_telegram(f"[{ward_name}] {message}")
-        status = 'sent' if tg_res.get('sent') else f"failed ({tg_res.get('reason')})"
-        outcomes.append(record_notification(ward_name, message, channel='telegram', delivery_status=status))
-        dispatched_any = True
+    # 1. Telegram (Admin + Assigned Worker)
+    if config.TELEGRAM_BOT_TOKEN:
+        # 1a. Admin / Supervisor Alert
+        if config.TELEGRAM_CHAT_ID:
+            tg_res = _send_telegram(f"[{ward_name}] {message}", chat_id=config.TELEGRAM_CHAT_ID)
+            status = 'sent' if tg_res.get('sent') else f"failed ({tg_res.get('reason')})"
+            outcomes.append(record_notification(ward_name, message, channel='telegram', delivery_status=status))
+            dispatched_any = True
+
+        # 1b. Worker Personal Alert (if configured)
+        target_worker_chat = employee_chat_id or config.WORKER_TELEGRAM_CHAT_ID
+        if not target_worker_chat and employee_phone:
+            try:
+                from database import fetch_one
+                emp = fetch_one('SELECT telegram_chat_id FROM employees WHERE phone = ?', (employee_phone,))
+                if emp and emp.get('telegram_chat_id'):
+                    target_worker_chat = emp['telegram_chat_id']
+            except Exception:
+                pass
+
+        if target_worker_chat and str(target_worker_chat) != str(config.TELEGRAM_CHAT_ID):
+            worker_msg = f"🔔 *Ward Task Dispatch*\nWard: *{ward_name}*\n{message}"
+            tg_w_res = _send_telegram(worker_msg, chat_id=target_worker_chat)
+            w_status = 'sent' if tg_w_res.get('sent') else f"failed ({tg_w_res.get('reason')})"
+            outcomes.append(record_notification(ward_name, f"[WORKER DISPATCH] {message}", channel='telegram-worker', delivery_status=w_status))
+            dispatched_any = True
+
 
     # 2. Try Discord Webhook (Free)
     if config.DISCORD_WEBHOOK_URL:
