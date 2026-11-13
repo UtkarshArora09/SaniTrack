@@ -41,33 +41,9 @@ def get_employees():
 @attendance_bp.post('/api/employees')
 @require_role('admin', 'supervisor')
 def create_employee():
-    data = request.get_json(force=True) if request.data else {}
-    emp_key = (data.get('emp_key') or '').strip().lower()
-    name = (data.get('name') or '').strip()
-    designation = (data.get('designation') or '').strip()
-    phone = (data.get('phone') or '').strip() or None
-
-    if not emp_key or not name:
-        return jsonify({'error': 'emp_key and name are required'}), 400
-
-    execute(
-        'INSERT OR IGNORE INTO employees (emp_key, name, designation, phone, created_at) VALUES (?, ?, ?, ?, ?)',
-        (emp_key, name, designation, phone, utc_now_iso())
-    )
-
-    metadata = {}
-    if config.EMPLOYEES_JSON.exists():
-        try:
-            metadata = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
-        except Exception:
-            metadata = {}
-    existing = metadata.get(emp_key, {})
-    metadata[emp_key] = {'name': name, 'designation': designation, 'phone': phone or existing.get('phone')}
-    config.EMPLOYEES_JSON.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
-
-    from app import face_service
-    face_service.reload()
-    return jsonify({'status': 'created'})
+    return jsonify({
+        'error': 'Biometric face scan is required to register new workers and set their passwords. Please use 80-Frame Biometric Capture or upload a face photo in the Admin Portal.'
+    }), 400
 
 
 @attendance_bp.post('/api/employees/enroll-web')
@@ -76,9 +52,16 @@ def enroll_employee_web():
     name = (request.form.get('name') or '').strip()
     designation = (request.form.get('designation') or 'Sanitation Staff').strip()
     phone = (request.form.get('phone') or '').strip()
+    password = (request.form.get('password') or '').strip()
 
     if not name:
         return jsonify({'error': 'Name is required'}), 400
+
+    if not phone:
+        return jsonify({'error': 'Worker mobile number is required for login access'}), 400
+
+    if not password or len(password) < 4:
+        return jsonify({'error': 'Password is required (minimum 4 characters) to set staff login password'}), 400
 
     if not emp_key:
         import re
@@ -89,11 +72,12 @@ def enroll_employee_web():
         if 'image' in request.files:
             uploaded_files = [request.files['image']]
         else:
-            return jsonify({'error': 'At least one face image is required'}), 400
+            return jsonify({'error': 'At least one face image or live biometric scan is required'}), 400
 
     import cv2
     import numpy as np
     from app import face_service
+    from core.security import hash_password
 
     cascade = face_service.engine.cascade
     face_crops = []
@@ -125,16 +109,20 @@ def enroll_employee_web():
 
     total_samples = face_service.enroll_samples(emp_key, face_crops)
 
+    # Face verification succeeded — hash password and store credentials
+    pwd_hash, _ = hash_password(password)
+
     execute(
         '''
-        INSERT INTO employees (emp_key, name, designation, phone, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO employees (emp_key, name, designation, phone, password_hash, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(emp_key) DO UPDATE SET
             name = excluded.name,
             designation = excluded.designation,
-            phone = excluded.phone
+            phone = excluded.phone,
+            password_hash = excluded.password_hash
         ''',
-        (emp_key, name, designation, phone, utc_now_iso())
+        (emp_key, name, designation, phone, pwd_hash, utc_now_iso())
     )
 
     metadata = {}
@@ -143,7 +131,13 @@ def enroll_employee_web():
             metadata = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
         except Exception:
             metadata = {}
-    metadata[emp_key] = {'name': name, 'designation': designation, 'phone': phone}
+    metadata[emp_key] = {
+        'name': name,
+        'designation': designation,
+        'phone': phone,
+        'password_hash': pwd_hash,
+        'telegram_chat_id': metadata.get(emp_key, {}).get('telegram_chat_id')
+    }
     config.EMPLOYEES_JSON.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
 
     face_service.reload()
@@ -152,6 +146,7 @@ def enroll_employee_web():
         'status': 'enrolled',
         'emp_key': emp_key,
         'name': name,
+        'phone': phone,
         'samples_captured': len(face_crops),
         'total_samples': total_samples
     })
@@ -167,6 +162,10 @@ def delete_employee(emp_key):
     execute('UPDATE wards SET assigned_employee_key = NULL WHERE assigned_employee_key = ?', (emp_key,))
     try:
         execute('UPDATE shift_schedules SET assigned_employee_key = NULL WHERE assigned_employee_key = ?', (emp_key,))
+    except Exception:
+        pass
+    try:
+        execute('DELETE FROM password_resets WHERE emp_key = ?', (emp_key,))
     except Exception:
         pass
 

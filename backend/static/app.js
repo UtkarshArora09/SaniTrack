@@ -186,14 +186,14 @@ function renderHistoryAndTelemetry(history, telemetry, employees) {
   const chipsContainer = document.getElementById('workerLinksList');
   if (chipsContainer) {
     if (!employees || employees.length === 0) {
-      chipsContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Zero workers registered. Run <code>python scripts\\enroll_face.py</code> to record new face biometrics.</div>';
+      chipsContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Zero workers registered. Use 80-Frame Biometric Capture above to enroll staff.</div>';
     } else {
       chipsContainer.innerHTML = employees.map(e => `
-        <div style="display: inline-flex; align-items: center; gap: 8px; background: #fff; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; margin: 4px;">
-          <a href="/worker/${e.emp_key}" target="_blank" style="text-decoration: none; color: var(--primary); font-weight: 600; font-size: 13px;">
-            📱 ${e.name} (${e.designation || 'Staff'})
-          </a>
-          <button onclick="deleteWorker('${e.emp_key}')" style="background: none; border: none; cursor: pointer; color: var(--danger); font-size: 14px; padding: 0 4px;" title="Delete worker & face data">✕</button>
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: #fff; padding: 6px 14px; border: 1px solid var(--border); border-radius: 999px; margin: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+          <span style="font-weight: 700; color: var(--text-main); font-size: 13px;">👤 ${e.name}</span>
+          <span style="font-size: 11px; color: var(--text-muted); background: #f1f5f9; padding: 2px 8px; border-radius: 999px;">${e.designation || 'Staff'}</span>
+          <span style="font-size: 11px; color: var(--text-muted);">📱 ${e.phone || 'No Mobile'}</span>
+          <button type="button" onclick="deleteWorker('${e.emp_key}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #b91c1c; border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; font-weight: bold; margin-left: 4px;" title="Delete worker, revoke portal access & erase biometrics">✕</button>
         </div>
       `).join('');
     }
@@ -679,6 +679,7 @@ if (btnStart80) {
     const nameInput = document.getElementById('enrollNameInput');
     const roleInput = document.getElementById('enrollRoleInput');
     const phoneInput = document.getElementById('enrollPhoneInput');
+    const pwdInput = document.getElementById('enrollPasswordInput');
     const feedback = document.getElementById('enrollFeedback');
     const progressContainer = document.getElementById('enrollProgressContainer');
     const progressBar = document.getElementById('enrollProgressBar');
@@ -689,9 +690,22 @@ if (btnStart80) {
     const guideText = document.getElementById('enrollGuideText');
 
     const name = (nameInput.value || '').trim();
+    const phone = (phoneInput ? phoneInput.value : '').trim();
+    const password = (pwdInput ? pwdInput.value : '').trim();
+
     if (!name) {
       alert('Please enter the full name of the staff member first.');
       nameInput.focus();
+      return;
+    }
+    if (!phone) {
+      alert('Please enter worker mobile number for staff login access.');
+      if (phoneInput) phoneInput.focus();
+      return;
+    }
+    if (!password || password.length < 4) {
+      alert('Please set a login password (at least 4 characters) for this worker.');
+      if (pwdInput) pwdInput.focus();
       return;
     }
 
@@ -765,7 +779,8 @@ if (btnStart80) {
       const formData = new FormData();
       formData.append('name', name);
       formData.append('designation', (roleInput.value || 'Sanitation Staff').trim());
-      formData.append('phone', (phoneInput.value || '').trim());
+      formData.append('phone', phone);
+      formData.append('password', password);
 
       capturedBlobs.forEach((blob, idx) => {
         formData.append('images', blob, `frame_${idx}.jpg`);
@@ -776,12 +791,13 @@ if (btnStart80) {
         body: formData
       });
 
-      feedback.innerHTML = `<span style="color: var(--success); font-weight: 700;">🎉 Success: Enrolled ${res.name} with ${res.samples_captured} biometric vector samples!</span>`;
-      alert(`Success: ${res.name} successfully registered with ${res.samples_captured} biometric frames!\nThey can now clock in at Step 1.`);
+      feedback.innerHTML = `<span style="color: var(--success); font-weight: 700;">🎉 Success: Enrolled ${res.name} with ${res.samples_captured} biometric vector samples! Login credentials configured.</span>`;
+      alert(`Success: ${res.name} registered with ${res.samples_captured} biometric frames!\nLogin password has been set. The worker can log in using Mobile Number "${phone}".`);
 
       nameInput.value = '';
-      roleInput.value = '';
-      phoneInput.value = '';
+      if (roleInput) roleInput.value = '';
+      if (phoneInput) phoneInput.value = '';
+      if (pwdInput) pwdInput.value = '';
       progressContainer.style.display = 'none';
       progressBar.style.width = '0%';
       loadAll();
@@ -803,24 +819,36 @@ document.getElementById('employeeForm').addEventListener('submit', async (e) => 
   const fileInput = document.getElementById('enrollPhotoInput');
   const hasFiles = fileInput && fileInput.files && fileInput.files.length > 0;
 
+  const name = (formData.get('name') || '').trim();
+  const phone = (formData.get('phone') || '').trim();
+  const password = (formData.get('password') || '').trim();
+
+  if (!name) {
+    alert('Please enter staff name.');
+    return;
+  }
+  if (!phone) {
+    alert('Please enter worker mobile number for login.');
+    return;
+  }
+  if (!password || password.length < 4) {
+    alert('Please enter a login password (at least 4 characters) for this worker.');
+    return;
+  }
+  if (!hasFiles) {
+    alert('Biometric face scan is required! Please click "Start 80-Frame Biometric Capture" or select a face photo to complete registration.');
+    return;
+  }
+
   submitBtn.disabled = true;
-  if (feedback) feedback.textContent = hasFiles ? 'Analyzing face & extracting biometric vectors...' : 'Saving staff profile...';
+  if (feedback) feedback.textContent = 'Analyzing face & extracting biometric vectors...';
 
   try {
-    if (hasFiles) {
-      const res = await fetchJSON('/api/employees/enroll-web', {
-        method: 'POST',
-        body: formData
-      });
-      alert(`Success: Enrolled ${res.name} with ${res.samples_captured} facial vector samples!`);
-    } else {
-      await fetchJSON('/api/employees', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.fromEntries(formData.entries()))
-      });
-      alert('Staff registered! Note: Use 80-Frame Capture or upload a photo to enable biometrics.');
-    }
+    const res = await fetchJSON('/api/employees/enroll-web', {
+      method: 'POST',
+      body: formData
+    });
+    alert(`Success: Enrolled ${res.name} with ${res.samples_captured} facial vector samples! Login password set.`);
     e.target.reset();
     if (feedback) feedback.textContent = '';
     loadAll();

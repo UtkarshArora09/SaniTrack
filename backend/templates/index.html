@@ -57,7 +57,6 @@
 
         <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); line-height: 1.5;">
           <div>Default Supervisor: <code>admin</code> / <code>admin123</code></div>
-          <div style="margin-top: 8px;">Are you a cleaning staff member? Access your personal mobile duty card via your direct link (e.g. <code>/worker/utkarsh_arora</code>).</div>
         </div>
       </div>
     </div>
@@ -264,7 +263,11 @@
               <form id="employeeForm" enctype="multipart/form-data">
                 <input name="name" id="enrollNameInput" placeholder="Full name (e.g. Rahul Singh)" required />
                 <input name="designation" id="enrollRoleInput" placeholder="Designation (e.g. WardBoy)" />
-                <input name="phone" id="enrollPhoneInput" placeholder="WhatsApp / Telegram phone" />
+                <input name="phone" id="enrollPhoneInput" placeholder="Worker Mobile Number (for Staff Login)" required />
+                <input type="password" name="password" id="enrollPasswordInput" placeholder="Set Staff Login Password (min 4 chars)" required minlength="4" />
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+                  ⚠️ Worker password is set only when face scan biometrics are successfully verified.
+                </div>
                 
                 <div class="enroll-camera-studio" style="margin-top: 10px;">
                   <div class="camera-preview-box" style="position: relative; height: 180px; background: #0f172a; border-radius: 12px; overflow: hidden; margin-bottom: 8px;">
@@ -302,7 +305,7 @@
             </div>
           </div>
           <div style="margin-top: 14px;">
-            <h4>Staff Mobile Portal Links:</h4>
+            <h4>Registered Sanitation Staff:</h4>
             <div id="workerLinksList" class="worker-chips"></div>
           </div>
         </div>

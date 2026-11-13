@@ -1,8 +1,21 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
+from datetime import datetime, timezone, timedelta
+import re
+import json
+import secrets
+import config
 from database import fetch_all, fetch_one, execute, utc_now_iso
-from services.notifier import notify_targets, record_notification
+from services.notifier import notify_targets, record_notification, _send_telegram
+from core.security import verify_password, hash_password
 
 worker_bp = Blueprint('worker_bp', __name__)
+
+
+def normalize_phone(phone_str):
+    if not phone_str:
+        return ''
+    cleaned = re.sub(r'\D', '', phone_str)
+    return cleaned[-10:] if len(cleaned) >= 10 else cleaned
 
 
 
@@ -108,5 +121,170 @@ def confirm_task():
     )
 
     return jsonify({'status': 'confirmed', 'notifications': notifications})
+
+
+@worker_bp.post('/api/worker/login')
+def worker_login():
+    data = request.get_json(force=True) if request.data else {}
+    phone = (data.get('phone') or '').strip()
+    password = (data.get('password') or '').strip()
+    emp_key = (data.get('emp_key') or '').strip().lower()
+
+    if not phone or not password:
+        return jsonify({'error': 'Mobile number and password are required'}), 400
+
+    clean_phone = normalize_phone(phone)
+    employees = fetch_all('SELECT * FROM employees')
+    matched_worker = None
+
+    for emp in employees:
+        emp_phone_clean = normalize_phone(emp.get('phone'))
+        if clean_phone and emp_phone_clean and (emp_phone_clean == clean_phone):
+            matched_worker = emp
+            break
+        # Also allow matching by explicit emp_key
+        if emp_key and emp.get('emp_key') == emp_key:
+            matched_worker = emp
+            break
+
+    if not matched_worker:
+        return jsonify({'error': 'No worker found registered with this mobile number'}), 404
+
+    stored_hash = matched_worker.get('password_hash')
+    if not stored_hash:
+        if password == 'worker123':
+            pass
+        else:
+            return jsonify({'error': 'Default password required. Please use worker123 or reset via Forgot Password.'}), 401
+    elif not verify_password(stored_hash, password):
+        return jsonify({'error': 'Invalid mobile number or password'}), 401
+
+    session['worker_emp_key'] = matched_worker['emp_key']
+    return jsonify({
+        'status': 'authenticated',
+        'emp_key': matched_worker['emp_key'],
+        'name': matched_worker['name'],
+        'designation': matched_worker.get('designation', 'Sanitation Staff')
+    })
+
+
+@worker_bp.post('/api/worker/logout')
+def worker_logout():
+    session.pop('worker_emp_key', None)
+    return jsonify({'status': 'logged_out'})
+
+
+@worker_bp.post('/api/worker/forgot-password/request')
+def worker_forgot_password_request():
+    data = request.get_json(force=True) if request.data else {}
+    phone = (data.get('phone') or '').strip()
+    if not phone:
+        return jsonify({'error': 'Mobile number is required'}), 400
+
+    clean_phone = normalize_phone(phone)
+    employees = fetch_all('SELECT * FROM employees')
+    matched_worker = None
+    for emp in employees:
+        if normalize_phone(emp.get('phone')) == clean_phone:
+            matched_worker = emp
+            break
+
+    if not matched_worker:
+        return jsonify({'error': 'No worker found registered with this mobile number. Please contact your supervisor.'}), 404
+
+    otp = f"{secrets.randbelow(900000) + 100000:06d}"
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+
+    execute(
+        'INSERT INTO password_resets (emp_key, otp_code, expires_at, created_at) VALUES (?, ?, ?, ?)',
+        (matched_worker['emp_key'], otp, expires_at, utc_now_iso())
+    )
+
+    # Dispatch to worker Telegram if connected
+    chat_id = matched_worker.get('telegram_chat_id')
+    if chat_id:
+        worker_msg = (
+            f"🔐 *SaniTrack Password Reset*\n\n"
+            f"Hello *{matched_worker['name']}*,\n"
+            f"Your 6-digit password reset PIN is: *{otp}*\n\n"
+            f"⏰ Valid for 10 minutes. Enter this code on the login page to set your new password."
+        )
+        _send_telegram(chat_id, worker_msg)
+
+    # Dispatch alert to Admin Telegram
+    admin_chat_id = config.TELEGRAM_CHAT_ID
+    if admin_chat_id:
+        admin_msg = (
+            f"🔑 *Staff Password Reset Request*\n\n"
+            f"👤 Staff: *{matched_worker['name']}* (`{matched_worker['emp_key']}`)\n"
+            f"📱 Phone: *{matched_worker.get('phone')}*\n"
+            f"🔢 Reset PIN: *{otp}*\n\n"
+            f"Provide this 6-digit code to the worker if requested."
+        )
+        _send_telegram(admin_chat_id, admin_msg)
+
+    return jsonify({
+        'status': 'otp_sent',
+        'emp_key': matched_worker['emp_key'],
+        'name': matched_worker['name'],
+        'has_telegram': bool(chat_id),
+        'message': 'Verification PIN generated and dispatched'
+    })
+
+
+@worker_bp.post('/api/worker/forgot-password/verify')
+def worker_forgot_password_verify():
+    data = request.get_json(force=True) if request.data else {}
+    emp_key = (data.get('emp_key') or '').strip().lower()
+    otp_code = (data.get('otp_code') or '').strip()
+    new_password = (data.get('new_password') or '').strip()
+
+    if not otp_code or not new_password:
+        return jsonify({'error': 'OTP code and new password are required'}), 400
+
+    if len(new_password) < 4:
+        return jsonify({'error': 'New password must be at least 4 characters'}), 400
+
+    now = utc_now_iso()
+    reset_entry = fetch_one(
+        'SELECT * FROM password_resets WHERE otp_code = ? AND expires_at > ? ORDER BY id DESC LIMIT 1',
+        (otp_code, now)
+    )
+    if not reset_entry:
+        return jsonify({'error': 'Invalid or expired 6-digit verification PIN. Please request a new code.'}), 400
+
+    target_emp_key = reset_entry['emp_key']
+    worker = employee_row(target_emp_key)
+    if not worker:
+        return jsonify({'error': 'Worker account not found'}), 404
+
+    pwd_hash, _ = hash_password(new_password)
+
+    execute('UPDATE employees SET password_hash = ? WHERE emp_key = ?', (pwd_hash, target_emp_key))
+    execute('DELETE FROM password_resets WHERE emp_key = ?', (target_emp_key,))
+
+    if config.EMPLOYEES_JSON.exists():
+        try:
+            metadata = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
+            if target_emp_key in metadata:
+                metadata[target_emp_key]['password_hash'] = pwd_hash
+                config.EMPLOYEES_JSON.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+        except Exception:
+            pass
+
+    session['worker_emp_key'] = target_emp_key
+
+    success_msg = f"✅ *Password Changed*: Login password for *{worker['name']}* was updated successfully."
+    if worker.get('telegram_chat_id'):
+        _send_telegram(worker['telegram_chat_id'], success_msg)
+    if config.TELEGRAM_CHAT_ID:
+        _send_telegram(config.TELEGRAM_CHAT_ID, success_msg)
+
+    return jsonify({
+        'status': 'success',
+        'emp_key': target_emp_key,
+        'name': worker['name'],
+        'message': 'Password updated successfully'
+    })
 
 

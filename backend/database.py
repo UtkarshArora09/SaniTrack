@@ -46,11 +46,24 @@ def init_db():
         name TEXT NOT NULL,
         designation TEXT,
         phone TEXT,
+        password_hash TEXT,
         telegram_chat_id TEXT,
         created_at TEXT NOT NULL
     )
     ''')
+    _ensure_column(cur, 'employees', 'password_hash', 'TEXT')
     _ensure_column(cur, 'employees', 'telegram_chat_id', 'TEXT')
+
+    # Password Reset Tokens Table (for Worker Forgot Password)
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS password_resets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        emp_key TEXT NOT NULL,
+        otp_code TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    ''')
 
 
     # 3. Wards Table
@@ -175,15 +188,25 @@ def init_db():
         try:
             metadata = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
             for emp_key, info in metadata.items():
+                pwd_hash = info.get('password_hash')
+                if not pwd_hash:
+                    pwd_hash, _ = hash_password('worker123')
+                    info['password_hash'] = pwd_hash
+                    try:
+                        config.EMPLOYEES_JSON.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+                    except Exception:
+                        pass
+
                 cur.execute(
-                    '''INSERT INTO employees (emp_key, name, designation, phone, telegram_chat_id, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?)
+                    '''INSERT INTO employees (emp_key, name, designation, phone, password_hash, telegram_chat_id, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)
                        ON CONFLICT(emp_key) DO UPDATE SET
                            name=excluded.name,
                            designation=excluded.designation,
                            phone=excluded.phone,
+                           password_hash=COALESCE(excluded.password_hash, employees.password_hash),
                            telegram_chat_id=COALESCE(excluded.telegram_chat_id, employees.telegram_chat_id)''',
-                    (emp_key, info.get('name', emp_key), info.get('designation'), info.get('phone'), info.get('telegram_chat_id'), utc_now_iso()),
+                    (emp_key, info.get('name', emp_key), info.get('designation'), info.get('phone'), pwd_hash, info.get('telegram_chat_id'), utc_now_iso()),
                 )
         except Exception:
             pass

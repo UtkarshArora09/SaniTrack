@@ -180,8 +180,172 @@ if (refreshBtn) {
   });
 }
 
-// Initial Load
-loadWorkerPage();
+// ----------------------------------------------------
+// Worker Authentication & Password Reset Handlers
+// ----------------------------------------------------
+const loginForm = document.getElementById('workerLoginForm');
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const phone = document.getElementById('workerLoginPhone').value.trim();
+    const password = document.getElementById('workerLoginPassword').value.trim();
+    const errorBox = document.getElementById('workerLoginError');
+    const submitBtn = document.getElementById('btnWorkerLoginSubmit');
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Verifying credentials...';
+    if (errorBox) errorBox.style.display = 'none';
+
+    try {
+      const res = await fetchJSON('/api/worker/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password, emp_key: window.SANITRACK_WORKER_KEY })
+      });
+
+      // If user logged in as a different staff member, redirect to their page
+      if (res.emp_key && res.emp_key !== window.SANITRACK_WORKER_KEY) {
+        window.location.replace(`/worker/${res.emp_key}`);
+        return;
+      }
+
+      window.SANITRACK_IS_AUTHENTICATED = true;
+      document.getElementById('workerAuthWrapper').style.display = 'none';
+      document.getElementById('workerDashboardSection').style.display = 'block';
+      loadWorkerPage();
+    } catch (err) {
+      if (errorBox) {
+        errorBox.textContent = `Login Failed: ${err.message}`;
+        errorBox.style.display = 'block';
+      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🔒 Sign In to Duty Portal';
+    }
+  });
+}
+
+// Toggle Forgot Password Views
+const btnToggleForgot = document.getElementById('btnToggleForgotPwd');
+const btnBackToLogin = document.getElementById('btnBackToLogin');
+const loginContainer = document.getElementById('workerLoginFormContainer');
+const forgotContainer = document.getElementById('workerForgotPwdContainer');
+
+if (btnToggleForgot) {
+  btnToggleForgot.addEventListener('click', () => {
+    loginContainer.style.display = 'none';
+    forgotContainer.style.display = 'block';
+    const currentPhone = document.getElementById('workerLoginPhone')?.value;
+    if (currentPhone && document.getElementById('forgotPhoneInput')) {
+      document.getElementById('forgotPhoneInput').value = currentPhone;
+    }
+  });
+}
+
+if (btnBackToLogin) {
+  btnBackToLogin.addEventListener('click', () => {
+    forgotContainer.style.display = 'none';
+    loginContainer.style.display = 'block';
+    const forgotErr = document.getElementById('forgotErrorMsg');
+    if (forgotErr) forgotErr.style.display = 'none';
+  });
+}
+
+// Request Password Reset OTP
+let targetResetEmpKey = window.SANITRACK_WORKER_KEY;
+const btnSendOtp = document.getElementById('btnSendResetOtp');
+if (btnSendOtp) {
+  btnSendOtp.addEventListener('click', async () => {
+    const phone = document.getElementById('forgotPhoneInput').value.trim();
+    const errBox = document.getElementById('forgotErrorMsg');
+    if (!phone) {
+      alert('Please enter your registered mobile number.');
+      return;
+    }
+
+    btnSendOtp.disabled = true;
+    btnSendOtp.textContent = 'Sending PIN...';
+    if (errBox) errBox.style.display = 'none';
+
+    try {
+      const res = await fetchJSON('/api/worker/forgot-password/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+      targetResetEmpKey = res.emp_key;
+      document.getElementById('forgotStep1').style.display = 'none';
+      document.getElementById('forgotStep2').style.display = 'block';
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = `Error: ${err.message}`;
+        errBox.style.display = 'block';
+      }
+    } finally {
+      btnSendOtp.disabled = false;
+      btnSendOtp.textContent = '📲 Send 6-Digit Reset PIN';
+    }
+  });
+}
+
+// Verify OTP & Save New Password
+const btnVerifyOtp = document.getElementById('btnVerifyResetOtp');
+if (btnVerifyOtp) {
+  btnVerifyOtp.addEventListener('click', async () => {
+    const otp = document.getElementById('forgotOtpInput').value.trim();
+    const newPassword = document.getElementById('forgotNewPasswordInput').value.trim();
+    const errBox = document.getElementById('forgotErrorMsg');
+
+    if (!otp || otp.length !== 6) {
+      alert('Please enter the 6-digit verification code.');
+      return;
+    }
+    if (!newPassword || newPassword.length < 4) {
+      alert('Password must be at least 4 characters.');
+      return;
+    }
+
+    btnVerifyOtp.disabled = true;
+    btnVerifyOtp.textContent = 'Updating password...';
+    if (errBox) errBox.style.display = 'none';
+
+    try {
+      const res = await fetchJSON('/api/worker/forgot-password/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emp_key: targetResetEmpKey || window.SANITRACK_WORKER_KEY,
+          otp_code: otp,
+          new_password: newPassword
+        })
+      });
+      alert('Password updated successfully! Welcome to your duty portal.');
+      window.location.replace(`/worker/${res.emp_key}`);
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = `Reset Failed: ${err.message}`;
+        errBox.style.display = 'block';
+      }
+      btnVerifyOtp.disabled = false;
+      btnVerifyOtp.textContent = '✓ Reset Password & Sign In';
+    }
+  });
+}
+
+// Worker Sign Out
+const btnSignOut = document.getElementById('btnWorkerSignOut');
+if (btnSignOut) {
+  btnSignOut.addEventListener('click', async () => {
+    try {
+      await fetchJSON('/api/worker/logout', { method: 'POST' });
+    } catch (e) {}
+    window.location.reload();
+  });
+}
+
+// Initial Load: Only fetch duties if user is authenticated
+if (window.SANITRACK_IS_AUTHENTICATED) {
+  loadWorkerPage();
+}
 
 // Progressive Web App (PWA) Service Worker Registration
 if ('serviceWorker' in navigator) {

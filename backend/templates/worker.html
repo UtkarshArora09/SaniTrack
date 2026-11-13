@@ -21,117 +21,204 @@
 
 <body>
   <div class="worker-shell">
+
+    <!-- Worker Login Screen (Required on First Access) -->
+    <div id="workerAuthWrapper" style="{% if is_authenticated %}display: none;{% else %}display: block;{% endif %} max-width: 420px; margin: 40px auto 20px; padding: 0 16px;">
+      <div class="card" style="padding: 32px 24px; text-align: center; border-radius: 16px; box-shadow: 0 10px 25px rgba(2, 132, 199, 0.08);">
+        <div style="font-size: 42px; margin-bottom: 8px;">🏥</div>
+        <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: var(--text-main);">Staff Portal Access</h2>
+        <p style="margin: 6px 0 20px; font-size: 13px; color: var(--text-muted);">Hospital Sanitation & Ward Cleaning Login</p>
+
+        <!-- Standard Login View -->
+        <div id="workerLoginFormContainer">
+          <form id="workerLoginForm">
+            <div style="text-align: left; margin-bottom: 14px;">
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Registered Mobile Number</label>
+              <input type="tel" id="workerLoginPhone" placeholder="e.g. 9876543210" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;" />
+            </div>
+            <div style="text-align: left; margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--text-main);">Password</label>
+                <button type="button" id="btnToggleForgotPwd" style="background: none; border: none; padding: 0; color: var(--primary); font-size: 12px; font-weight: 600; cursor: pointer;">Forgot Password?</button>
+              </div>
+              <input type="password" id="workerLoginPassword" placeholder="••••••••" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;" />
+            </div>
+
+            <div id="workerLoginError" style="color: var(--danger); font-size: 13px; margin-bottom: 14px; display: none; font-weight: 600; text-align: left;"></div>
+
+            <button type="submit" id="btnWorkerLoginSubmit" class="btn btn-primary btn-block" style="padding: 12px; font-size: 14px; width: 100%;">
+              🔒 Sign In to Duty Portal
+            </button>
+          </form>
+          <div style="margin-top: 18px; font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+            Staff passwords are set by the Admin during face scan enrollment.
+          </div>
+        </div>
+
+        <!-- Forgot Password View -->
+        <div id="workerForgotPwdContainer" style="display: none; text-align: left;">
+          <h3 style="font-size: 16px; margin: 0 0 8px; color: var(--text-main);">Reset Staff Password</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 16px;">
+            Enter your registered mobile number. A 6-digit verification PIN will be sent to your connected Telegram & hospital supervisor.
+          </p>
+
+          <!-- Step 1: Request OTP -->
+          <div id="forgotStep1">
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Registered Mobile Number</label>
+              <input type="tel" id="forgotPhoneInput" placeholder="e.g. 9876543210" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;" />
+            </div>
+            <button type="button" id="btnSendResetOtp" class="btn btn-primary btn-block" style="width: 100%; padding: 10px;">
+              📲 Send 6-Digit Reset PIN
+            </button>
+          </div>
+
+          <!-- Step 2: Verify OTP & Set New Password -->
+          <div id="forgotStep2" style="display: none; margin-top: 14px;">
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #166534; margin-bottom: 12px;">
+              ✅ Reset PIN dispatched to Telegram & supervisor log!
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 4px;">6-Digit Verification PIN</label>
+              <input type="text" id="forgotOtpInput" placeholder="e.g. 123456" maxlength="6" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 16px; letter-spacing: 2px; text-align: center;" />
+            </div>
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 4px;">Set New Password (min 4 chars)</label>
+              <input type="password" id="forgotNewPasswordInput" placeholder="••••••••" minlength="4" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;" />
+            </div>
+            <button type="button" id="btnVerifyResetOtp" class="btn btn-success btn-block" style="width: 100%; padding: 10px;">
+              ✓ Reset Password & Sign In
+            </button>
+          </div>
+
+          <div id="forgotErrorMsg" style="color: var(--danger); font-size: 12px; margin-top: 12px; display: none; font-weight: 600;"></div>
+
+          <div style="margin-top: 18px; text-align: center;">
+            <button type="button" id="btnBackToLogin" style="background: none; border: none; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer;">
+              ← Back to Sign In
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Main Protected Worker Dashboard (Shown When Authenticated) -->
+    <div id="workerDashboardSection" style="{% if is_authenticated %}display: block;{% else %}display: none;{% endif %}">
     
-    <!-- Top Header -->
-    <header class="app-header">
-      <div class="brand">
-        <div class="brand-icon">🏥</div>
+      <!-- Top Header -->
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-icon">🏥</div>
+          <div>
+            <div class="brand-title">SaniTrack <span class="brand-badge">Staff Portal</span></div>
+            <div class="brand-sub">Daily Ward Cleaning & Task Confirmations</div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-outline btn-sm" id="btnWorkerSignOut" style="padding: 4px 10px; font-size: 12px;">Sign Out</button>
+          <button type="button" class="btn btn-primary btn-sm" id="refreshWorkerPage">🔄 Refresh Tasks</button>
+        </div>
+      </header>
+
+      <!-- Worker Profile Hero Card -->
+      <div class="worker-profile-card">
+        <div class="worker-profile-main">
+          <div class="worker-avatar">🧹</div>
+          <div class="worker-title-box">
+            <h1>{{ worker_name }}</h1>
+            <p>{{ (worker and worker.designation) or 'Sanitation Personnel' }} &bull; Staff Key: <code>{{ emp_key }}</code></p>
+          </div>
+        </div>
+        <div class="status-indicator">
+          <span class="pulsing-dot"></span>
+          <span>Active on Shift</span>
+        </div>
+      </div>
+
+      <!-- PWA Install Prompt Banner (Shows on mobile when installable) -->
+      <div id="pwaInstallBanner" style="display: none; margin-top: 14px; background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 12px; padding: 14px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 24px;">📱</span>
+          <div>
+            <strong style="color: #0369a1; font-size: 14px;">Install SaniTrack on Home Screen</strong>
+            <p style="margin: 2px 0 0; color: #0284c7; font-size: 12px;">Install as a native app on your phone for instant full-screen duty access.</p>
+          </div>
+        </div>
+        <button type="button" id="btnPwaInstall" class="btn btn-sm btn-primary">📲 Install App</button>
+      </div>
+
+      <!-- Telegram 1-Click Self-Registration Banner -->
+      <div id="telegramConnectBanner" style="margin-top: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 24px;">📲</span>
+          <div>
+            <strong id="tgStatusTitle" style="color: #166534; font-size: 14px;">Instant Telegram Alerts</strong>
+            <p id="tgStatusDesc" style="margin: 2px 0 0; color: #15803d; font-size: 12px;">Connect your Telegram to receive task assignments and dirty ward notifications in real time.</p>
+          </div>
+        </div>
         <div>
-          <div class="brand-title">SaniTrack <span class="brand-badge">Staff Portal</span></div>
-          <div class="brand-sub">Daily Ward Cleaning & Task Confirmations</div>
+          <a id="tgConnectLink" href="https://t.me/SaniTrackBot?start=emp_{{ emp_key }}" target="_blank" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <span>📲 Connect Telegram</span>
+          </a>
         </div>
       </div>
-      <div class="header-actions">
-        <button type="button" class="btn btn-primary btn-sm" id="refreshWorkerPage">🔄 Refresh Tasks</button>
-      </div>
 
-    </header>
-
-    <!-- Worker Profile Hero Card -->
-    <div class="worker-profile-card">
-      <div class="worker-profile-main">
-        <div class="worker-avatar">🧹</div>
-        <div class="worker-title-box">
-          <h1>{{ worker_name }}</h1>
-          <p>{{ (worker and worker.designation) or 'Sanitation Personnel' }} &bull; Staff Key: <code>{{ emp_key }}</code></p>
+      <!-- Assigned Tasks Section -->
+      <section style="margin-top: 28px;">
+        <div class="section-title">
+          <h2>Your Assigned Wards</h2>
+          <p>Current cleaning duties assigned by the Hospital Supervisor.</p>
         </div>
-      </div>
-      <div class="status-indicator">
-        <span class="pulsing-dot"></span>
-        <span>Active on Shift</span>
-      </div>
-    </div>
 
-    <!-- PWA Install Prompt Banner (Shows on mobile when installable) -->
-    <div id="pwaInstallBanner" style="display: none; margin-top: 14px; background: #e0f2fe; border: 1px solid #7dd3fc; border-radius: 12px; padding: 14px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 24px;">📱</span>
-        <div>
-          <strong style="color: #0369a1; font-size: 14px;">Install SaniTrack on Home Screen</strong>
-          <p style="margin: 2px 0 0; color: #0284c7; font-size: 12px;">Install as a native app on your phone for instant full-screen duty access.</p>
+        <div id="workerTasks">
+          <div class="spinner">Loading your assigned duties...</div>
         </div>
-      </div>
-      <button type="button" id="btnPwaInstall" class="btn btn-sm btn-primary">📲 Install App</button>
-    </div>
+      </section>
 
-    <!-- Telegram 1-Click Self-Registration Banner -->
-
-    <div id="telegramConnectBanner" style="margin-top: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 24px;">📲</span>
-        <div>
-          <strong id="tgStatusTitle" style="color: #166534; font-size: 14px;">Instant Telegram Alerts</strong>
-          <p id="tgStatusDesc" style="margin: 2px 0 0; color: #15803d; font-size: 12px;">Connect your Telegram to receive task assignments and dirty ward notifications in real time.</p>
+      <!-- Recent Alerts & Notifications -->
+      <section style="margin-top: 28px;">
+        <div class="section-title">
+          <h2>Recent Supervisor & Ward Alerts</h2>
+          <p>Audit findings, shift reassignments, and urgent notices.</p>
         </div>
-      </div>
-      <div>
-        <a id="tgConnectLink" href="https://t.me/SaniTrackBot?start=emp_{{ emp_key }}" target="_blank" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
-          <span>📲 Connect Telegram</span>
-        </a>
-      </div>
-    </div>
 
+        <div id="workerNotifications">
+          <div class="card" style="color: var(--text-muted); padding: 16px;">Loading notifications...</div>
+        </div>
+      </section>
 
-    <!-- Assigned Tasks Section -->
-    <section style="margin-top: 28px;">
-      <div class="section-title">
-        <h2>Your Assigned Wards</h2>
-        <p>Current cleaning duties assigned by the Hospital Supervisor.</p>
-      </div>
+      <!-- Standard Cleaning Protocol -->
+      <section class="guideline-box">
+        <h3 style="margin: 0 0 12px; font-size: 16px;">Standard Ward Sanitation Protocol</h3>
+        <div class="guideline-item">
+          <div class="guideline-num">1</div>
+          <div><strong>Clock in at ward entrance:</strong> Ensure your face is verified in Step 1 on the main dashboard when arriving.</div>
+        </div>
+        <div class="guideline-item">
+          <div class="guideline-num">2</div>
+          <div><strong>Clear floor debris & hazardous waste:</strong> Pay extra attention to under-bed zones, blister foils, wrappers, and sharps.</div>
+        </div>
+        <div class="guideline-item">
+          <div class="guideline-num">3</div>
+          <div><strong>Click "Mark Cleaning Complete":</strong> Click the green confirmation button above so the Admin receives notice to run the AI inspection.</div>
+        </div>
+      </section>
 
-      <div id="workerTasks">
-        <div class="spinner">Loading your assigned duties...</div>
-      </div>
-    </section>
+    </div><!-- End workerDashboardSection -->
 
-    <!-- Recent Alerts & Notifications -->
-    <section style="margin-top: 28px;">
-      <div class="section-title">
-        <h2>Recent Supervisor & Ward Alerts</h2>
-        <p>Audit findings, shift reassignments, and urgent notices.</p>
-      </div>
-
-      <div id="workerNotifications">
-        <div class="card" style="color: var(--text-muted); padding: 16px;">Loading notifications...</div>
-      </div>
-    </section>
-
-    <!-- Standard Cleaning Protocol -->
-    <section class="guideline-box">
-      <h3 style="margin: 0 0 12px; font-size: 16px;">Standard Ward Sanitation Protocol</h3>
-      <div class="guideline-item">
-        <div class="guideline-num">1</div>
-        <div><strong>Clock in at ward entrance:</strong> Ensure your face is verified in Step 1 on the main dashboard when arriving.</div>
-      </div>
-      <div class="guideline-item">
-        <div class="guideline-num">2</div>
-        <div><strong>Clear floor debris & hazardous waste:</strong> Pay extra attention to under-bed zones, blister foils, wrappers, and sharps.</div>
-      </div>
-      <div class="guideline-item">
-        <div class="guideline-num">3</div>
-        <div><strong>Click "Mark Cleaning Complete":</strong> Click the green confirmation button above so the Admin receives notice to run the AI inspection.</div>
-      </div>
-    </section>
-
-  </div>
+  </div><!-- End worker-shell -->
 
   <script>
     window.SANITRACK_WORKER_KEY = {{ emp_key|tojson }};
+    window.SANITRACK_IS_AUTHENTICATED = {{ is_authenticated|tojson }};
     try {
       localStorage.setItem('sanitrack_emp_key', window.SANITRACK_WORKER_KEY);
       document.cookie = "sanitrack_emp_key=" + encodeURIComponent(window.SANITRACK_WORKER_KEY) + "; path=/; max-age=31536000; SameSite=Lax";
     } catch(e) {}
   </script>
+  <script src="{{ url_for('static', filename='worker.js') }}"></script>
+</body>
   <script src="{{ url_for('static', filename='worker.js') }}"></script>
 </body>
 </html>
