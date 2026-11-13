@@ -5,71 +5,150 @@
   return data;
 }
 
-function statusClass(status) {
-  const normalized = (status || 'Unknown').toLowerCase();
-  if (normalized.includes('clean') && !normalized.includes('not')) return 'status-clean';
-  if (normalized.includes('not') || normalized.includes('dirty')) return 'status-not-clean';
-  return 'status-unknown';
+function getStatusPill(status) {
+  const normalized = (status || 'Pending').toLowerCase();
+  if (normalized.includes('clean') && !normalized.includes('not')) {
+    return '<span class="status-pill clean">✓ Clean</span>';
+  }
+  if (normalized.includes('not') || normalized.includes('dirty')) {
+    return '<span class="status-pill not-clean">✕ Needs Cleaning</span>';
+  }
+  return '<span class="status-pill pending">⏳ Pending Check</span>';
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return 'None recorded';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return isoStr;
+  }
 }
 
 function renderWorker(payload) {
-  const summary = document.getElementById('workerSummary');
-  summary.textContent = JSON.stringify(payload.worker, null, 2);
-
   const tasks = document.getElementById('workerTasks');
-  if (!payload.assigned_wards.length) {
-    tasks.innerHTML = '<div class="meta">No wards are currently assigned to you.</div>';
+  if (!tasks) return;
+
+  if (!payload.assigned_wards || !payload.assigned_wards.length) {
+    tasks.innerHTML = `
+      <div class="card" style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
+        <div style="font-size: 36px; margin-bottom: 8px;">📋</div>
+        <strong style="color: var(--text-main); font-size: 15px; display: block;">No Wards Assigned Currently</strong>
+        <p style="margin: 6px 0 0; font-size: 13px;">Your supervisor has not assigned any active wards to your shift.</p>
+      </div>`;
   } else {
     tasks.innerHTML = payload.assigned_wards.map((ward) => `
-      <article class="timeline-item">
-        <div class="card-header">
-          <strong>${ward.name}</strong>
-          <span class="status-chip ${statusClass(ward.latest_status)}">${ward.latest_status || 'Pending'}</span>
+      <article class="task-card">
+        <div class="task-header">
+          <div>
+            <div class="task-ward-title">${ward.name}</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">📍 ${ward.location || ward.name}</div>
+          </div>
+          <div>${getStatusPill(ward.latest_status)}</div>
         </div>
-        <div class="meta">Location: ${ward.location || ward.name}</div>
-        <div class="meta">Latest inspection: ${ward.latest_inspection_at || 'No inspection yet'}</div>
-        <div class="meta">Objects detected: ${ward.latest_object_count ?? 0}</div>
-        <div class="meta">Last attendance: ${ward.latest_attendance_at || 'No attendance yet'}</div>
-        <div class="meta">Last confirmation: ${ward.last_confirmation_at || 'No confirmation yet'}</div>
-        ${ward.override_reason ? `<div class="meta">Override reason: ${ward.override_reason}</div>` : ''}
-        <button type="button" class="ghost" data-worker-confirm="${ward.name}">Confirm Cleaning Complete</button>
+
+        <div class="task-meta-grid">
+          <div class="task-meta-item">Latest Inspection: <strong>${formatDate(ward.latest_inspection_at)}</strong></div>
+          <div class="task-meta-item">Floor Objects: <strong>${ward.latest_object_count ?? 0} items detected</strong></div>
+          <div class="task-meta-item">Last Attendance Log: <strong>${formatDate(ward.latest_attendance_at)}</strong></div>
+          <div class="task-meta-item">Last Confirmation: <strong>${ward.last_confirmation_at ? formatDate(ward.last_confirmation_at) : 'Not confirmed yet'}</strong></div>
+        </div>
+
+        ${ward.override_reason ? `
+          <div style="margin-bottom: 14px; font-size: 12px; background: #f8fafc; border-left: 3px solid var(--primary); padding: 8px 12px; border-radius: 4px;">
+            <strong>Supervisor Note:</strong> ${ward.override_reason}
+          </div>
+        ` : ''}
+
+        <button type="button" class="btn btn-success btn-block" data-worker-confirm="${ward.name}">
+          ✓ Mark Cleaning Complete for ${ward.name}
+        </button>
       </article>
     `).join('');
   }
 
   const notifications = document.getElementById('workerNotifications');
-  if (!payload.notifications.length) {
-    notifications.innerHTML = '<div class="meta">No notifications yet.</div>';
+  if (!notifications) return;
+
+  if (!payload.notifications || !payload.notifications.length) {
+    notifications.innerHTML = `
+      <div class="card" style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">
+        No recent notifications or urgent alerts for your assigned wards.
+      </div>`;
   } else {
-    notifications.innerHTML = payload.notifications.map((item) => `
-      <article class="timeline-item">
-        <strong>${item.ward_name}</strong>
-        <div class="meta">${item.message}</div>
-        <small>${item.created_at}</small>
-      </article>
-    `).join('');
+    notifications.innerHTML = payload.notifications.map((item) => {
+      const isUrgent = (item.message || '').toLowerCase().includes('not clean') || (item.message || '').toLowerCase().includes('urgent');
+      return `
+        <div class="notification-card ${isUrgent ? 'alert' : ''}">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <strong style="color: ${isUrgent ? 'var(--danger)' : 'var(--primary)'}; font-size: 13px;">
+              ${item.ward_name || 'Ward Update'}
+            </strong>
+            <span class="notification-time">${formatDate(item.created_at)}</span>
+          </div>
+          <div style="color: var(--text-main); font-size: 13px; line-height: 1.4;">${item.message}</div>
+        </div>
+      `;
+    }).join('');
   }
 }
 
 async function loadWorkerPage() {
-  const payload = await fetchJSON(`/api/workers/${window.SANITRACK_WORKER_KEY}/dashboard`);
-  renderWorker(payload);
+  const tasks = document.getElementById('workerTasks');
+  if (tasks && !tasks.innerHTML.trim()) {
+    tasks.innerHTML = '<div class="spinner">Loading your assigned duties...</div>';
+  }
+  try {
+    const payload = await fetchJSON(`/api/workers/${window.SANITRACK_WORKER_KEY}/dashboard`);
+    renderWorker(payload);
+  } catch (error) {
+    console.error(error);
+    if (tasks) {
+      tasks.innerHTML = `<div class="card" style="padding: 18px; color: var(--danger); font-size: 13px;">Failed to load assignments: ${error.message}</div>`;
+    }
+  }
 }
 
 document.addEventListener('click', async (event) => {
-  const wardName = event.target.dataset.workerConfirm;
-  if (!wardName) return;
-  const notes = window.prompt(`Add an optional note for ${wardName}:`, 'Cleaning completed and ready for inspection.') || 'Cleaning completed and ready for inspection.';
-  await fetchJSON('/api/tasks/confirm', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ward_name: wardName, employee_key: window.SANITRACK_WORKER_KEY, notes }),
-  });
-  await loadWorkerPage();
+  const target = event.target.closest('[data-worker-confirm]');
+  if (!target) return;
+  const wardName = target.dataset.workerConfirm;
+  const originalText = target.innerHTML;
+
+  const notes = window.prompt(`Confirm cleaning for ${wardName}?\nAdd optional comments (e.g. "Floors mopped, trash cleared"):`, 'Cleaning completed and sanitized.') || 'Cleaning completed and sanitized.';
+
+  try {
+    target.disabled = true;
+    target.textContent = 'Submitting confirmation...';
+    await fetchJSON('/api/tasks/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ward_name: wardName, employee_key: window.SANITRACK_WORKER_KEY, notes }),
+    });
+    alert(`Success: Cleaning completion confirmed for ${wardName}. Supervisor has been notified.`);
+    await loadWorkerPage();
+  } catch (err) {
+    alert(`Failed to confirm cleaning: ${err.message}`);
+    target.disabled = false;
+    target.innerHTML = originalText;
+  }
 });
 
-document.getElementById('refreshWorkerPage').addEventListener('click', loadWorkerPage);
-loadWorkerPage().catch((error) => {
-  console.error(error);
-  document.getElementById('workerSummary').textContent = `Worker page load failed: ${error.message}`;
-});
+const refreshBtn = document.getElementById('refreshWorkerPage');
+if (refreshBtn) {
+  refreshBtn.addEventListener('click', async () => {
+    refreshBtn.disabled = true;
+    const oldText = refreshBtn.textContent;
+    refreshBtn.textContent = 'Refreshing...';
+    try {
+      await loadWorkerPage();
+    } finally {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = oldText;
+    }
+  });
+}
+
+loadWorkerPage();

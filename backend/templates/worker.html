@@ -3,71 +3,86 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SaniTrack Worker View</title>
+  <title>{{ worker_name }} — SaniTrack Staff Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2...family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
-  <div class="page-shell">
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Worker Task View</p>
-        <h1>{{ worker_name }}</h1>
-        <p class="hero-copy">See assigned wards, current cleaning status, recent notifications, and confirm task completion.</p>
+  <div class="worker-shell">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">🏥</div>
+        <div>
+          <div class="brand-title">SaniTrack <span class="brand-badge">Staff Portal</span></div>
+          <div class="brand-sub">Daily Ward Cleaning & Task Confirmations</div>
+        </div>
       </div>
-      <div class="hero-panel">
-        <span class="live-dot"></span>
-        <span>Worker URL: /worker/{{ emp_key }}</span>
+      <div class="header-actions">
+        <a href="/" class="btn btn-outline btn-sm">&larr; Hospital Hub</a>
+        <button type="button" class="btn btn-primary btn-sm" id="refreshWorkerPage">🔄 Refresh Tasks</button>
       </div>
     </header>
 
-    <section class="content-grid">
-      <div class="card">
-        <div class="card-header">
-          <h2>Assigned Tasks</h2>
-          <button class="ghost" id="refreshWorkerPage">Refresh</button>
+    <!-- Worker Profile Hero Card -->
+    <div class="worker-profile-card">
+      <div class="worker-profile-main">
+        <div class="worker-avatar">🧹</div>
+        <div class="worker-title-box">
+          <h1>{{ worker_name }}</h1>
+          <p>{{ (worker and worker.designation) or 'Sanitation Personnel' }} &bull; Staff Key: <code>{{ emp_key }}</code></p>
         </div>
-        <div id="workerTasks" class="timeline"></div>
+      </div>
+      <div class="status-indicator">
+        <span class="pulsing-dot"></span>
+        <span>Active on Shift</span>
+      </div>
+    </div>
+
+    <!-- Assigned Tasks Section -->
+    <section style="margin-top: 28px;">
+      <div class="section-title">
+        <h2>Your Assigned Wards</h2>
+        <p>Current cleaning duties assigned by the Hospital Supervisor.</p>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <h2>Recent Notifications</h2>
-        </div>
-        <div id="workerNotifications" class="timeline"></div>
+      <div id="workerTasks">
+        <div class="spinner">Loading your assigned duties...</div>
       </div>
     </section>
 
-    <section class="content-grid">
-      <div class="card">
-        <div class="card-header">
-          <h2>Worker Summary</h2>
-        </div>
-        <div id="workerSummary" class="result-box">Loading…</div>
+    <!-- Recent Alerts & Notifications -->
+    <section style="margin-top: 28px;">
+      <div class="section-title">
+        <h2>Recent Supervisor & Ward Alerts</h2>
+        <p>Audit findings, shift reassignments, and urgent notices.</p>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <h2>How to Use</h2>
-        </div>
-        <div class="timeline">
-          <article class="timeline-item">
-            <strong>1. Check assigned ward</strong>
-            <div class="meta">Use this page to see which ward is assigned to you.</div>
-          </article>
-          <article class="timeline-item">
-            <strong>2. Clean and confirm</strong>
-            <div class="meta">After cleaning, click the confirm button on the ward card.</div>
-          </article>
-          <article class="timeline-item">
-            <strong>3. Watch notifications</strong>
-            <div class="meta">If the ward fails inspection or you are reassigned, you will see it here and via WhatsApp if configured.</div>
-          </article>
-        </div>
+      <div id="workerNotifications">
+        <div class="card" style="color: var(--text-muted); padding: 16px;">Loading notifications...</div>
       </div>
     </section>
+
+    <!-- Standard Cleaning Protocol -->
+    <section class="guideline-box">
+      <h3 style="margin: 0 0 12px; font-size: 16px;">Standard Ward Sanitation Protocol</h3>
+      <div class="guideline-item">
+        <div class="guideline-num">1</div>
+        <div><strong>Clock in at ward entrance:</strong> Ensure your face is verified in Step 1 on the main dashboard when arriving.</div>
+      </div>
+      <div class="guideline-item">
+        <div class="guideline-num">2</div>
+        <div><strong>Clear floor debris & hazardous waste:</strong> Pay extra attention to under-bed zones, blister foils, wrappers, and sharps.</div>
+      </div>
+      <div class="guideline-item">
+        <div class="guideline-num">3</div>
+        <div><strong>Click "Mark Cleaning Complete":</strong> Click the green confirmation button above so the Admin receives notice to run the AI inspection.</div>
+      </div>
+    </section>
+
   </div>
 
   <script>

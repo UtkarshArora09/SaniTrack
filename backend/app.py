@@ -78,7 +78,7 @@ def worker_view(emp_key):
     worker = fetch_one('SELECT * FROM employees WHERE emp_key = ?', (emp_key,))
     if not worker:
         return 'Worker not found', 404
-    return render_template('worker.html', emp_key=emp_key, worker_name=worker.get('name', emp_key))
+    return render_template('worker.html', emp_key=emp_key, worker_name=worker.get('name', emp_key), worker=worker)
 
 
 @app.get('/api/health')
