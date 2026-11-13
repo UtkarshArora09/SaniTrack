@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from database import fetch_all, fetch_one, execute, utc_now_iso
-from services.notifier import record_notification
+from services.notifier import notify_targets, record_notification
 
 worker_bp = Blueprint('worker_bp', __name__)
+
 
 
 def employee_row(emp_key):
@@ -82,16 +83,30 @@ def confirm_task():
     ward = fetch_one('SELECT * FROM wards WHERE name = ?', (ward_name,))
     if not ward:
         return jsonify({'error': 'Ward not found'}), 404
+
+    employee = employee_row(employee_key)
+    worker_name = employee.get('name') if employee else employee_key
         
     execute(
         'INSERT INTO task_confirmations (ward_name, employee_key, notes, created_at) VALUES (?, ?, ?, ?)',
         (ward_name, employee_key, notes, utc_now_iso())
     )
-    record_notification(
-        ward_name,
-        f"{employee_key} marked task complete: {notes}",
-        channel='worker-confirmation',
-        delivery_status='logged'
+
+    admin_message = (
+        f"✅ *Ward Cleaning Completed*\n"
+        f"📍 Ward: *{ward_name}*\n"
+        f"👤 Completed by: *{worker_name}* ({employee_key})\n"
+        f"📝 Notes: {notes}\n"
+        f"👉 Ready for AI Hygiene Inspection (Step 4)."
     )
-    return jsonify({'status': 'confirmed'})
+
+    notifications = notify_targets(
+        ward_name,
+        admin_message,
+        employee_phone=employee.get('phone') if employee else None,
+        employee_chat_id=employee.get('telegram_chat_id') if employee else None
+    )
+
+    return jsonify({'status': 'confirmed', 'notifications': notifications})
+
 
