@@ -49,12 +49,13 @@ class ShiftMonitoringDaemon:
         current_time_str = now.strftime('%H:%M')
 
         active_shifts = fetch_all(
-            '''SELECT s.*, w.name AS ward_name, e.name AS employee_name, e.phone AS employee_phone
+            '''SELECT s.*, w.name AS ward_name, e.name AS employee_name, e.phone AS employee_phone, e.telegram_chat_id AS employee_chat_id
                FROM shift_schedules s
                JOIN wards w ON w.name = s.ward_name
                LEFT JOIN employees e ON e.emp_key = s.assigned_employee_key
                WHERE s.is_active = 1 AND s.assigned_employee_key IS NOT NULL'''
         )
+
 
         for shift in active_shifts:
             shift_id = shift['id']
@@ -87,7 +88,12 @@ class ShiftMonitoringDaemon:
                         msg = (f"Automated Absence Alert: {emp_name} is absent for {ward_name} "
                                f"during {shift['shift_name']} (started at {start_str}).")
                         logger.warning(msg)
-                        self.notify(ward_name, msg, employee_phone=shift.get('employee_phone'))
+                        self.notify(
+                            ward_name,
+                            msg,
+                            employee_phone=shift.get('employee_phone'),
+                            employee_chat_id=shift.get('employee_chat_id')
+                        )
                         self._alerted_shifts_today.add(alert_key)
 
             except Exception as parse_err:

@@ -127,19 +127,29 @@ def alert_absence(ward_id):
     if not ward:
         return jsonify({'error': 'Ward not found'}), 404
         
-    employee = employee_row(ward.get('assigned_employee_key'))
-    if not employee:
-        return jsonify({'error': 'No assigned worker for this ward'}), 400
+    assigned_key = ward.get('assigned_employee_key')
+    employee = employee_row(assigned_key) if assigned_key else None
+    user_reason = (data.get('reason') or '').strip()
 
-    reason = (data.get('reason') or 'Assigned worker absent during scheduled cleaning window.').strip()
-    message = f"{ward['name']} Urgent: {reason}"
+    if employee:
+        reason = user_reason or 'Assigned worker absent during scheduled cleaning window.'
+        message = f"🚨 *Urgent Absence Alert*: {ward['name']}\n👤 Assigned Staff: *{employee['name']}* ({assigned_key})\n⚠️ Notice: {reason}"
+        emp_phone = employee.get('phone')
+        emp_chat_id = employee.get('telegram_chat_id')
+    else:
+        reason = user_reason or 'Ward is currently unassigned and has no cleaning personnel present during shift.'
+        message = f"🚨 *Unassigned Ward Alert*: {ward['name']}\n⚠️ Notice: {reason}"
+        emp_phone = None
+        emp_chat_id = None
+
     notifications = notify_targets(
         ward['name'],
         message,
-        employee_phone=employee.get('phone'),
-        employee_chat_id=employee.get('telegram_chat_id')
+        employee_phone=emp_phone,
+        employee_chat_id=emp_chat_id
     )
     return jsonify({'status': 'sent', 'notifications': notifications})
+
 
 
 @ward_bp.post('/api/wards/<int:ward_id>/auto-monitor')
