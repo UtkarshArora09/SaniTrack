@@ -209,7 +209,7 @@ def worker_forgot_password_request():
             f"Your 6-digit password reset PIN is: *{otp}*\n\n"
             f"⏰ Valid for 10 minutes. Enter this code on the login page to set your new password."
         )
-        _send_telegram(chat_id, worker_msg)
+        _send_telegram(worker_msg, chat_id=chat_id)
 
     # Dispatch alert to Admin Telegram
     admin_chat_id = config.TELEGRAM_CHAT_ID
@@ -221,7 +221,7 @@ def worker_forgot_password_request():
             f"🔢 Reset PIN: *{otp}*\n\n"
             f"Provide this 6-digit code to the worker if requested."
         )
-        _send_telegram(admin_chat_id, admin_msg)
+        _send_telegram(admin_msg, chat_id=admin_chat_id)
 
     return jsonify({
         'status': 'otp_sent',
@@ -276,9 +276,9 @@ def worker_forgot_password_verify():
 
     success_msg = f"✅ *Password Changed*: Login password for *{worker['name']}* was updated successfully."
     if worker.get('telegram_chat_id'):
-        _send_telegram(worker['telegram_chat_id'], success_msg)
+        _send_telegram(success_msg, chat_id=worker['telegram_chat_id'])
     if config.TELEGRAM_CHAT_ID:
-        _send_telegram(config.TELEGRAM_CHAT_ID, success_msg)
+        _send_telegram(success_msg, chat_id=config.TELEGRAM_CHAT_ID)
 
     return jsonify({
         'status': 'success',

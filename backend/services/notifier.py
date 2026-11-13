@@ -21,6 +21,13 @@ def _is_valid_e164(phone_number):
 
 # 1. Telegram Bot (100% Free Forever)
 def _send_telegram(message, chat_id=None):
+    # Detect swapped arguments safely
+    if chat_id is not None:
+        msg_str = str(message).strip()
+        chat_str = str(chat_id).strip()
+        if (msg_str.isdigit() or (msg_str.startswith('-') and msg_str[1:].isdigit())) and ('\n' in chat_str or len(chat_str) > len(msg_str)):
+            message, chat_id = chat_id, message
+
     target_chat = chat_id or config.TELEGRAM_CHAT_ID
     if not (config.TELEGRAM_BOT_TOKEN and target_chat):
         return {'sent': False, 'reason': 'telegram-not-configured'}
