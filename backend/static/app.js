@@ -831,7 +831,74 @@ document.getElementById('employeeForm').addEventListener('submit', async (e) => 
   }
 });
 
+// Authentication & Supervisor Portal Gate
+async function checkAuth() {
+  const loginScreen = document.getElementById('adminLoginScreen');
+  const dashboardContent = document.getElementById('dashboardAppContent');
+  const authNav = document.getElementById('authHeaderNav');
+
+  try {
+    const res = await fetchJSON('/api/auth/me');
+    if (res.authenticated && res.user && (res.user.role === 'admin' || res.user.role === 'supervisor')) {
+      if (loginScreen) loginScreen.style.display = 'none';
+      if (dashboardContent) dashboardContent.style.display = 'block';
+      if (authNav) {
+        authNav.innerHTML = `
+          <div class="user-auth-badge">
+            <span>🛡️ ${res.user.name}</span>
+            <button type="button" class="btn btn-outline btn-sm" id="btnAdminLogout" style="padding: 4px 10px; font-size: 11px;">Sign Out</button>
+          </div>
+        `;
+        document.getElementById('btnAdminLogout')?.addEventListener('click', async () => {
+          await fetchJSON('/api/auth/logout', { method: 'POST' });
+          window.location.reload();
+        });
+      }
+      setupWebcam('attendance');
+      setupWebcam('inspection');
+      loadAll();
+    } else {
+      if (loginScreen) loginScreen.style.display = 'flex';
+      if (dashboardContent) dashboardContent.style.display = 'none';
+      if (authNav) authNav.innerHTML = '';
+    }
+  } catch (e) {
+    if (loginScreen) loginScreen.style.display = 'flex';
+    if (dashboardContent) dashboardContent.style.display = 'none';
+  }
+}
+
+const loginForm = document.getElementById('adminLoginForm');
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    const errorBox = document.getElementById('loginErrorMsg');
+    const submitBtn = document.getElementById('btnLoginSubmit');
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Verifying Credentials...';
+    if (errorBox) errorBox.style.display = 'none';
+
+    try {
+      await fetchJSON('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      window.location.reload();
+    } catch (err) {
+      if (errorBox) {
+        errorBox.textContent = `Login Failed: ${err.message}`;
+        errorBox.style.display = 'block';
+      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🔒 Sign In to Admin Center';
+    }
+  });
+}
+
 // Initialize
-setupWebcam('attendance');
-setupWebcam('inspection');
-loadAll();
+checkAuth();
+

@@ -511,3 +511,33 @@ input:focus, select:focus, textarea:focus {
   font-weight: 800;
   flex-shrink: 0;
 }
+
+/* Admin Authentication Screen */
+.admin-login-wrapper {
+  min-height: 65vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 16px;
+}
+.login-card {
+  width: min(460px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 38px 32px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+.user-auth-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+

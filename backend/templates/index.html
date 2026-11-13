@@ -27,8 +27,43 @@
           <span>Live Ward AI Active</span>
         </div>
         <a href="/api/reports/audit.csv" class="btn btn-outline" download>📥 Export Audit CSV</a>
+        <div id="authHeaderNav"></div>
       </div>
     </header>
+
+    <!-- Hospital Supervisor / Admin Authentication Gate -->
+    <div id="adminLoginScreen" class="admin-login-wrapper">
+      <div class="login-card">
+        <div style="font-size: 42px; margin-bottom: 8px;">🏥</div>
+        <h2 style="font-size: 22px; font-weight: 800; margin: 0 0 6px;">Hospital Admin Portal</h2>
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 20px;">
+          Supervisor Command Center. Please authenticate to access live ward surveillance, camera inspection, and staff management.
+        </p>
+
+        <form id="adminLoginForm">
+          <div style="text-align: left; margin-bottom: 14px;">
+            <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Supervisor Username</label>
+            <input type="text" id="loginUsername" placeholder="e.g. admin or supervisor" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);" />
+          </div>
+          <div style="text-align: left; margin-bottom: 18px;">
+            <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Access Password</label>
+            <input type="password" id="loginPassword" placeholder="••••••••" required style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);" />
+          </div>
+          <div id="loginErrorMsg" style="color: var(--danger); font-size: 13px; margin-bottom: 14px; display: none; font-weight: 600;"></div>
+          <button type="submit" id="btnLoginSubmit" class="btn btn-primary btn-block" style="padding: 12px; font-size: 14px;">
+            🔒 Sign In to Admin Center
+          </button>
+        </form>
+
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+          <div>Default Supervisor: <code>admin</code> / <code>admin123</code></div>
+          <div style="margin-top: 8px;">Are you a cleaning staff member? Access your personal mobile duty card via your direct link (e.g. <code>/worker/utkarsh_arora</code>).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Protected Admin Dashboard Content -->
+    <div id="dashboardAppContent" style="display: none;">
 
     <!-- Top Alert Toast Bar -->
     <div class="live-toast-bar" id="liveToastBar">
@@ -274,8 +309,11 @@
       </details>
     </section>
 
-  </div>
+    </div><!-- End dashboardAppContent -->
+
+  </div><!-- End page-shell -->
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
+
 </body>
 </html>
