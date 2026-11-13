@@ -275,6 +275,7 @@ if (btnSendOtp) {
       targetResetEmpKey = res.emp_key;
       document.getElementById('forgotStep1').style.display = 'none';
       document.getElementById('forgotStep2').style.display = 'block';
+      startResendCooldown(30);
     } catch (err) {
       if (errBox) {
         errBox.textContent = `Error: ${err.message}`;
@@ -283,6 +284,70 @@ if (btnSendOtp) {
     } finally {
       btnSendOtp.disabled = false;
       btnSendOtp.textContent = '📲 Send 6-Digit Reset PIN';
+    }
+  });
+}
+
+// Resend OTP Cooldown Timer & Handler
+let resendTimer = null;
+function startResendCooldown(seconds = 30) {
+  const btn = document.getElementById('btnResendOtp');
+  if (!btn) return;
+  clearInterval(resendTimer);
+  let remaining = seconds;
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  btn.style.cursor = 'not-allowed';
+  btn.textContent = `⏳ Resend (${remaining}s)`;
+
+  resendTimer = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(resendTimer);
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      btn.textContent = '🔄 Resend OTP';
+    } else {
+      btn.textContent = `⏳ Resend (${remaining}s)`;
+    }
+  }, 1000);
+}
+
+const btnResend = document.getElementById('btnResendOtp');
+if (btnResend) {
+  btnResend.addEventListener('click', async () => {
+    const phone = document.getElementById('forgotPhoneInput')?.value.trim();
+    const errBox = document.getElementById('forgotErrorMsg');
+    const alertBox = document.getElementById('otpSentAlertBox');
+    if (!phone) {
+      alert('Mobile number not found. Please go back and enter your mobile number.');
+      return;
+    }
+
+    btnResend.disabled = true;
+    btnResend.textContent = 'Resending...';
+    if (errBox) errBox.style.display = 'none';
+
+    try {
+      const res = await fetchJSON('/api/worker/forgot-password/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+      targetResetEmpKey = res.emp_key;
+      if (alertBox) {
+        alertBox.textContent = '✅ New 6-digit PIN sent to Telegram & supervisor log!';
+        alertBox.style.display = 'block';
+      }
+      startResendCooldown(30);
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = `Resend Failed: ${err.message}`;
+        errBox.style.display = 'block';
+      }
+      btnResend.disabled = false;
+      btnResend.textContent = '🔄 Resend OTP';
     }
   });
 }
