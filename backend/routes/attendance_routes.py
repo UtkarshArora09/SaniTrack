@@ -70,6 +70,93 @@ def create_employee():
     return jsonify({'status': 'created'})
 
 
+@attendance_bp.post('/api/employees/enroll-web')
+def enroll_employee_web():
+    emp_key = (request.form.get('emp_key') or '').strip().lower()
+    name = (request.form.get('name') or '').strip()
+    designation = (request.form.get('designation') or 'Sanitation Staff').strip()
+    phone = (request.form.get('phone') or '').strip()
+
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+
+    if not emp_key:
+        import re
+        emp_key = re.sub(r'[^a-zA-Z0-9_]+', '_', name.replace(' ', '_')).lower().strip('_')
+
+    uploaded_files = request.files.getlist('images')
+    if not uploaded_files or len(uploaded_files) == 0:
+        if 'image' in request.files:
+            uploaded_files = [request.files['image']]
+        else:
+            return jsonify({'error': 'At least one face image is required'}), 400
+
+    import cv2
+    import numpy as np
+    from app import face_service
+
+    cascade = face_service.engine.cascade
+    face_crops = []
+
+    for file_obj in uploaded_files:
+        try:
+            file_bytes = file_obj.read()
+            if not file_bytes:
+                continue
+            nparr = np.frombuffer(file_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if img is None:
+                continue
+
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            faces = cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=4, minSize=(40, 40))
+            if len(faces) > 0:
+                faces_sorted = sorted(faces, key=lambda r: r[2] * r[3], reverse=True)
+                x, y, w, h = faces_sorted[0]
+                crop = img[y:y+h, x:x+w]
+                if crop.size > 0:
+                    resized = cv2.resize(crop, (100, 100), interpolation=cv2.INTER_AREA)
+                    face_crops.append(resized)
+        except Exception:
+            continue
+
+    if not face_crops:
+        return jsonify({'error': 'No clear face detected in the submitted image(s). Ensure face is well-lit and facing the camera directly.'}), 400
+
+    total_samples = face_service.enroll_samples(emp_key, face_crops)
+
+    execute(
+        '''
+        INSERT INTO employees (emp_key, name, designation, phone, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(emp_key) DO UPDATE SET
+            name = excluded.name,
+            designation = excluded.designation,
+            phone = excluded.phone
+        ''',
+        (emp_key, name, designation, phone, utc_now_iso())
+    )
+
+    metadata = {}
+    if config.EMPLOYEES_JSON.exists():
+        try:
+            metadata = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
+        except Exception:
+            metadata = {}
+    metadata[emp_key] = {'name': name, 'designation': designation, 'phone': phone}
+    config.EMPLOYEES_JSON.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+
+    face_service.reload()
+
+    return jsonify({
+        'status': 'enrolled',
+        'emp_key': emp_key,
+        'name': name,
+        'samples_captured': len(face_crops),
+        'total_samples': total_samples
+    })
+
+
 @attendance_bp.delete('/api/employees/<emp_key>')
 def delete_employee(emp_key):
     emp_key = emp_key.strip().lower()

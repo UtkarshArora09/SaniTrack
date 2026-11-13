@@ -212,7 +212,11 @@ Status: Clocked in for ${wardName}
       const quickEmpSelect = document.getElementById('quickAssignEmployeeSelect');
       if (quickEmpSelect) quickEmpSelect.value = res.employee_key;
     } else {
-      resBox.innerHTML = `<strong style="color: var(--danger);">❌ Verification Failed:</strong> ${res.message}`;
+      let extraHelp = '';
+      if ((res.message || '').includes('No enrolled face samples')) {
+        extraHelp = '<br><span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">Register staff with a face photo below under <strong>"👥 Staff Registry"</strong> to activate biometrics.</span>';
+      }
+      resBox.innerHTML = `<strong style="color: var(--danger);">❌ Verification Failed:</strong> ${res.message}${extraHelp}`;
     }
     loadAll();
   } catch (err) {
@@ -611,15 +615,38 @@ document.getElementById('wardForm').addEventListener('submit', async (e) => {
 
 document.getElementById('employeeForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const feedback = document.getElementById('enrollFeedback');
+  const submitBtn = e.target.querySelector('button[type="submit"]');
   const formData = new FormData(e.target);
-  await fetchJSON('/api/employees', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(Object.fromEntries(formData.entries()))
-  });
-  e.target.reset();
-  alert('Staff registered successfully!');
-  loadAll();
+  const fileInput = document.getElementById('enrollPhotoInput');
+  const hasFiles = fileInput && fileInput.files && fileInput.files.length > 0;
+
+  submitBtn.disabled = true;
+  if (feedback) feedback.textContent = hasFiles ? 'Analyzing face & extracting biometric vectors...' : 'Saving staff profile...';
+
+  try {
+    if (hasFiles) {
+      const res = await fetchJSON('/api/employees/enroll-web', {
+        method: 'POST',
+        body: formData
+      });
+      alert(`Success: Enrolled ${res.name} with ${res.samples_captured} facial vector samples!`);
+    } else {
+      await fetchJSON('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(formData.entries()))
+      });
+      alert('Staff registered! Note: Upload a photo to enable facial recognition.');
+    }
+    e.target.reset();
+    if (feedback) feedback.textContent = '';
+    loadAll();
+  } catch (err) {
+    if (feedback) feedback.innerHTML = `<span style="color: var(--danger);">Enrollment failed: ${err.message}</span>`;
+  } finally {
+    submitBtn.disabled = false;
+  }
 });
 
 // Initialize

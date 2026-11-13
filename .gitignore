@@ -21,13 +21,11 @@ env/
 .DS_Store
 Thumbs.db
 
-# Uploads and datasets
+# Uploads and generated files
 backend/data/uploads/*
 !backend/data/uploads/.gitkeep
 backend/data/inspections/*
 !backend/data/inspections/.gitkeep
-backend/data/face_dataset/*
-!backend/data/face_dataset/.gitkeep
 
 # Runtime database
 backend/data/sanitrack.db

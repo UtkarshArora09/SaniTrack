@@ -225,13 +225,17 @@
               </form>
             </div>
             <div class="card form-card">
-              <h3>Register New Cleaning Staff</h3>
-              <form id="employeeForm">
-                <input name="emp_key" placeholder="Staff key (unique, e.g. rahul)" required />
+              <h3>Register New Staff & Face Biometrics</h3>
+              <form id="employeeForm" enctype="multipart/form-data">
                 <input name="name" placeholder="Full name (e.g. Rahul Singh)" required />
-                <input name="designation" placeholder="Designation" />
+                <input name="designation" placeholder="Designation (e.g. WardBoy)" />
                 <input name="phone" placeholder="WhatsApp phone (+91...)" />
-                <button type="submit" class="btn btn-primary">Register Staff</button>
+                <div style="margin: 8px 0;">
+                  <label class="field-label" style="font-size: 11px;">Face Photo / Selfie (For Biometric Verification)</label>
+                  <input type="file" id="enrollPhotoInput" name="images" accept="image/*" />
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Register & Enroll Face</button>
+                <div id="enrollFeedback" style="font-size: 12px; margin-top: 6px;"></div>
               </form>
             </div>
           </div>
