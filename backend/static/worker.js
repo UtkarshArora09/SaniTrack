@@ -1,4 +1,4 @@
-﻿async function fetchJSON(url, options) {
+async function fetchJSON(url, options) {
   const response = await fetch(url, options);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Request failed');
@@ -28,6 +28,35 @@ function formatDate(isoStr) {
 }
 
 function renderWorker(payload) {
+  // Update Telegram connection status
+  if (payload.worker) {
+    const tgLink = document.getElementById('tgConnectLink');
+    const tgDesc = document.getElementById('tgStatusDesc');
+    const tgTitle = document.getElementById('tgStatusTitle');
+    const tgBanner = document.getElementById('telegramConnectBanner');
+    if (payload.worker.telegram_chat_id) {
+      if (tgTitle) tgTitle.textContent = '✅ Telegram Alerts Active';
+      if (tgDesc) tgDesc.textContent = `Connected! You will receive task dispatches and emergency ward alerts on Telegram.`;
+      if (tgLink) {
+        tgLink.innerHTML = '<span>💬 Open SaniTrack Bot</span>';
+        tgLink.href = 'https://t.me/SaniTrackBot';
+        tgLink.className = 'btn btn-sm btn-secondary';
+      }
+      if (tgBanner) {
+        tgBanner.style.background = '#f0fdf4';
+        tgBanner.style.borderColor = '#86efac';
+      }
+    } else {
+      if (tgTitle) tgTitle.textContent = 'Instant Telegram Alerts';
+      if (tgDesc) tgDesc.textContent = 'Tap Connect to receive cleaning duties and supervisor notices directly on your phone.';
+      if (tgLink) {
+        tgLink.innerHTML = '<span>📲 Connect Telegram</span>';
+        tgLink.href = `https://t.me/SaniTrackBot?start=emp_${window.SANITRACK_WORKER_KEY}`;
+        tgLink.className = 'btn btn-sm btn-primary';
+      }
+    }
+  }
+
   const tasks = document.getElementById('workerTasks');
   if (!tasks) return;
 

@@ -57,6 +57,11 @@ shift_daemon = ShiftMonitoringDaemon(
 )
 shift_daemon.start()
 
+# Telegram Worker Auto-Linking & Interaction Daemon
+from services.telegram_bot_service import TelegramBotDaemon
+telegram_daemon = TelegramBotDaemon(interval_seconds=5)
+telegram_daemon.start()
+
 # Register Blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(ward_bp)

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -41,6 +41,23 @@
         <span>Active on Shift</span>
       </div>
     </div>
+
+    <!-- Telegram 1-Click Self-Registration Banner -->
+    <div id="telegramConnectBanner" style="margin-top: 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 24px;">📲</span>
+        <div>
+          <strong id="tgStatusTitle" style="color: #166534; font-size: 14px;">Instant Telegram Alerts</strong>
+          <p id="tgStatusDesc" style="margin: 2px 0 0; color: #15803d; font-size: 12px;">Connect your Telegram to receive task assignments and dirty ward notifications in real time.</p>
+        </div>
+      </div>
+      <div>
+        <a id="tgConnectLink" href="https://t.me/SaniTrackBot?start=emp_{{ emp_key }}" target="_blank" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+          <span>📲 Connect Telegram</span>
+        </a>
+      </div>
+    </div>
+
 
     <!-- Assigned Tasks Section -->
     <section style="margin-top: 28px;">
