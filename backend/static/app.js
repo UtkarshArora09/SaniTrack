@@ -1,6 +1,20 @@
 async function fetchJSON(url, options) {
   const response = await fetch(url, options);
-  const data = await response.json();
+  const contentType = response.headers.get('content-type') || '';
+  let data;
+  if (contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Server returned HTTP ${response.status}: ${text.slice(0, 80)}`);
+    }
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      throw new Error(`Unexpected server response (HTTP ${response.status})`);
+    }
+  }
   if (!response.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
@@ -442,6 +456,27 @@ document.getElementById('inspectionForm').addEventListener('submit', async (e) =
 
   const formData = new FormData(e.target);
   formData.set('ward_name', wardName);
+
+  // If camera is streaming and user hasn't explicitly clicked Snap Floor, auto-capture current frame
+  if (!webcamState.inspection.blob && webcamState.inspection.stream) {
+    const video = document.getElementById('inspectionVideo');
+    const canvas = document.getElementById('inspectionCanvas');
+    if (video && canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.classList.add('has-frame');
+      const blobPromise = new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+      webcamState.inspection.blob = await blobPromise;
+    }
+  }
+
+  const fileInput = e.target.querySelector('input[type="file"][name="image"]');
+  const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+  if (!webcamState.inspection.blob && !hasFile) {
+    resBox.innerHTML = '<div style="color: var(--danger); font-size: 13px; font-weight: 600;">⚠️ Please start the camera and point it at the floor, or choose an image file to inspect.</div>';
+    return;
+  }
+
   if (webcamState.inspection.blob) {
     formData.set('image', webcamState.inspection.blob, 'floor.jpg');
   }
