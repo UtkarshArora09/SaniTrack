@@ -17,7 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
-RUN pip install -r requirements.txt
+# Install CPU-optimized PyTorch first to stay strictly within Render 512MB RAM free tier
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
@@ -26,4 +28,5 @@ RUN mkdir -p backend/data/uploads backend/data/inspections backend/data/face_dat
 
 EXPOSE 5050
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} wsgi:app --workers 1 --threads 4 --timeout 180"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} wsgi:app --workers 1 --threads 2 --timeout 180"]
+

@@ -166,10 +166,16 @@ def override_inspection(inspection_id):
         (override_status, overridden_by, override_reason or None, utc_now_iso(), inspection_id)
     )
 
-    message = f"{inspection['ward_name']} override set to {override_status} by {overridden_by}."
+    message = f"⚖️ *Supervisor Status Override*: {inspection['ward_name']} status changed to *{override_status}* by {overridden_by}."
     if override_reason:
-        message += f" Reason: {override_reason}"
-    record_notification(inspection['ward_name'], message, channel='override', delivery_status='logged')
+        message += f"\n📝 Reason: {override_reason}"
 
-    return jsonify({'status': 'overridden', 'new_status': override_status})
+    notifications = notify_targets(
+        inspection['ward_name'],
+        message,
+        employee_phone=employee_phone_for(inspection.get('employee_key'))
+    )
+
+    return jsonify({'status': 'overridden', 'new_status': override_status, 'notifications': notifications})
+
 

@@ -1,4 +1,5 @@
 import concurrent.futures
+import gc
 import logging
 from pathlib import Path
 import cv2
@@ -22,20 +23,21 @@ class YOLOInferenceEngine:
         self.confidence_threshold = float(confidence_threshold)
         self.inspections_dir = Path(inspections_dir) if inspections_dir else None
         self._model = None
-        # ThreadPoolExecutor limited to 2 workers to prevent CPU/memory exhaustion on edge devices
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix='YOLO_Worker')
+        # Single worker queue prevents simultaneous CPU tensor memory peaks on Render Free Tier (512MB RAM)
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='YOLO_Worker')
         self._initialized = True
 
     def _ensure_model(self):
         if self._model is not None:
             return self._model
         try:
+            import torch
+            torch.set_num_threads(1)
             from ultralytics import YOLO
         except ImportError:
             raise RuntimeError('Ultralytics package is not installed. Please install requirements.txt.')
 
         if not self.model_path or not self.model_path.exists():
-            # Search alternate paths if not found
             possible_paths = [
                 Path(__file__).resolve().parents[1] / 'backend' / 'data' / 'models' / 'waste_detector.pt',
                 Path(__file__).resolve().parent / 'models' / 'waste_detector.pt',
@@ -54,16 +56,36 @@ class YOLOInferenceEngine:
 
     def analyze(self, image_path, inspection_id=None):
         """
-        Synchronous forward pass on an image.
-        Returns detailed bounding boxes, labels, and generates an annotated image.
+        Synchronous forward pass on an image with memory safeguards for cloud hosting.
         """
+        import torch
         model = self._ensure_model()
-        results = model.predict(
-            source=str(image_path),
-            conf=self.confidence_threshold,
-            save=False,
-            verbose=False
-        )
+
+        # Downscale large images to max 640px to keep RAM usage within Render's 512MB ceiling
+        try:
+            img = cv2.imread(str(image_path))
+            if img is not None:
+                h, w = img.shape[:2]
+                if max(h, w) > 640:
+                    scale = 640 / max(h, w)
+                    resized = cv2.resize(img, (int(w * scale), int(h * scale)))
+                    cv2.imwrite(str(image_path), resized)
+                    del resized
+                del img
+        except Exception as e:
+            logger.warning(f"Could not pre-scale image {image_path}: {e}")
+
+        with torch.inference_mode():
+            results = model.predict(
+                source=str(image_path),
+                conf=self.confidence_threshold,
+                imgsz=640,
+                device='cpu',
+                max_det=10,
+                save=False,
+                verbose=False
+            )
+
         result = results[0]
         boxes = result.boxes
         object_found = boxes is not None and len(boxes) > 0
@@ -71,6 +93,7 @@ class YOLOInferenceEngine:
         raw_label = None
         object_count = 0
         detections = []
+
 
         # Friendly label mapping so the hospital admin never sees confusing internal labels like "bag"
         FRIENDLY_CLASS_NAMES = {
@@ -102,6 +125,11 @@ class YOLOInferenceEngine:
             output_name = f'inspection_{inspection_id}.jpg' if inspection_id else f'{Path(image_path).stem}_annotated.jpg'
             annotated_path = self.inspections_dir / output_name
             cv2.imwrite(str(annotated_path), plotted)
+            del plotted
+
+        del result
+        del results
+        gc.collect()
 
         return {
             'status': 'Not Clean' if object_found else 'Clean',

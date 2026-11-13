@@ -489,8 +489,11 @@ document.getElementById('inspectionForm').addEventListener('submit', async (e) =
     const initial = await fetchJSON('/api/inspection/analyze', { method: 'POST', body: formData });
     const inspectionId = initial.inspection_id;
 
-    // 2. Poll until background forward-pass completes
+    // 2. Poll until background forward-pass completes (relaxed 2s interval to prevent Cloudflare/Render 429)
+    let attempts = 0;
+    const maxAttempts = 20; // 40 seconds max
     const pollInterval = setInterval(async () => {
+      attempts++;
       try {
         const res = await fetchJSON(`/api/inspection/${inspectionId}/status`);
         if (res.complete) {
@@ -510,13 +513,25 @@ document.getElementById('inspectionForm').addEventListener('submit', async (e) =
 ${res.annotated_image_url ? `<img src="${res.annotated_image_url}" style="width: 100%; border-radius: 8px; margin-top: 8px;" />` : ''}
           `;
           loadAll();
+        } else if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+          submitBtn.disabled = false;
+          resBox.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">Audit is processing in the background. Please check the Audit Log table below shortly.</div>';
+          loadAll();
         }
       } catch (pollErr) {
-        clearInterval(pollInterval);
-        submitBtn.disabled = false;
-        resBox.textContent = `Polling error: ${pollErr.message}`;
+        if (pollErr.message.includes('429')) {
+          console.warn('Rate limit 429 encountered, waiting for next cycle...');
+          return;
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(pollInterval);
+          submitBtn.disabled = false;
+          resBox.textContent = `Inspection status: Processing in background. Refresh in a moment.`;
+        }
       }
-    }, 800);
+    }, 2000);
+
 
   } catch (err) {
     submitBtn.disabled = false;
