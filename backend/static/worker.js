@@ -337,7 +337,7 @@ if (btnResend) {
       });
       targetResetEmpKey = res.emp_key;
       if (alertBox) {
-        alertBox.textContent = '✅ New 6-digit PIN sent to Telegram & supervisor log!';
+        alertBox.textContent = '✅ New 6-digit PIN sent to your Telegram bot!';
         alertBox.style.display = 'block';
       }
       startResendCooldown(30);

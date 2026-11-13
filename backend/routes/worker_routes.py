@@ -200,35 +200,27 @@ def worker_forgot_password_request():
         (matched_worker['emp_key'], otp, expires_at, utc_now_iso())
     )
 
-    # Dispatch to worker Telegram if connected
+    # Dispatch strictly to worker's private Telegram bot
     chat_id = matched_worker.get('telegram_chat_id')
-    if chat_id:
-        worker_msg = (
-            f"🔐 *SaniTrack Password Reset*\n\n"
-            f"Hello *{matched_worker['name']}*,\n"
-            f"Your 6-digit password reset PIN is: *{otp}*\n\n"
-            f"⏰ Valid for 10 minutes. Enter this code on the login page to set your new password."
-        )
-        _send_telegram(worker_msg, chat_id=chat_id)
+    if not chat_id:
+        return jsonify({
+            'error': 'No Telegram account linked to this mobile number. Please link your Telegram with @SaniTrackBot first or contact your supervisor.'
+        }), 400
 
-    # Dispatch alert to Admin Telegram
-    admin_chat_id = config.TELEGRAM_CHAT_ID
-    if admin_chat_id:
-        admin_msg = (
-            f"🔑 *Staff Password Reset Request*\n\n"
-            f"👤 Staff: *{matched_worker['name']}* (`{matched_worker['emp_key']}`)\n"
-            f"📱 Phone: *{matched_worker.get('phone')}*\n"
-            f"🔢 Reset PIN: *{otp}*\n\n"
-            f"Provide this 6-digit code to the worker if requested."
-        )
-        _send_telegram(admin_msg, chat_id=admin_chat_id)
+    worker_msg = (
+        f"🔐 *SaniTrack Password Reset*\n\n"
+        f"Hello *{matched_worker['name']}*,\n"
+        f"Your 6-digit password reset PIN is: *{otp}*\n\n"
+        f"⏰ Valid for 10 minutes. Enter this code on the login page to set your new password."
+    )
+    _send_telegram(worker_msg, chat_id=chat_id)
 
     return jsonify({
         'status': 'otp_sent',
         'emp_key': matched_worker['emp_key'],
         'name': matched_worker['name'],
-        'has_telegram': bool(chat_id),
-        'message': 'Verification PIN generated and dispatched'
+        'has_telegram': True,
+        'message': 'Verification PIN sent to worker Telegram bot'
     })
 
 
@@ -274,11 +266,9 @@ def worker_forgot_password_verify():
 
     session['worker_emp_key'] = target_emp_key
 
-    success_msg = f"✅ *Password Changed*: Login password for *{worker['name']}* was updated successfully."
+    success_msg = f"✅ *Password Changed*: Your staff login password was updated successfully."
     if worker.get('telegram_chat_id'):
         _send_telegram(success_msg, chat_id=worker['telegram_chat_id'])
-    if config.TELEGRAM_CHAT_ID:
-        _send_telegram(success_msg, chat_id=config.TELEGRAM_CHAT_ID)
 
     return jsonify({
         'status': 'success',
