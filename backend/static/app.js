@@ -613,6 +613,138 @@ document.getElementById('wardForm').addEventListener('submit', async (e) => {
   loadAll();
 });
 
+// Show upload button if file is chosen manually
+const fileInput = document.getElementById('enrollPhotoInput');
+if (fileInput) {
+  fileInput.addEventListener('change', () => {
+    const btn = document.getElementById('btnSubmitFileEnroll');
+    if (btn) btn.style.display = fileInput.files.length > 0 ? 'inline-block' : 'none';
+  });
+}
+
+// 80-Frame Biometric Capture Studio
+const btnStart80 = document.getElementById('btnStart80FrameCapture');
+if (btnStart80) {
+  btnStart80.addEventListener('click', async () => {
+    const nameInput = document.getElementById('enrollNameInput');
+    const roleInput = document.getElementById('enrollRoleInput');
+    const phoneInput = document.getElementById('enrollPhoneInput');
+    const feedback = document.getElementById('enrollFeedback');
+    const progressContainer = document.getElementById('enrollProgressContainer');
+    const progressBar = document.getElementById('enrollProgressBar');
+    const progressStatus = document.getElementById('enrollProgressStatus');
+    const progressPercent = document.getElementById('enrollProgressPercent');
+    const video = document.getElementById('enrollWebcamVideo');
+    const canvas = document.getElementById('enrollWebcamCanvas');
+    const guideText = document.getElementById('enrollGuideText');
+
+    const name = (nameInput.value || '').trim();
+    if (!name) {
+      alert('Please enter the full name of the staff member first.');
+      nameInput.focus();
+      return;
+    }
+
+    btnStart80.disabled = true;
+    feedback.textContent = '';
+    progressContainer.style.display = 'block';
+
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' }
+      });
+      video.srcObject = stream;
+      await new Promise(r => video.onloadedmetadata = r);
+      video.play();
+    } catch (camErr) {
+      btnStart80.disabled = false;
+      progressContainer.style.display = 'none';
+      alert(`Camera access error: ${camErr.message}. You can still upload a photo below.`);
+      return;
+    }
+
+    const TARGET_FRAMES = 80;
+    const capturedBlobs = [];
+    canvas.width = 320;
+    canvas.height = 240;
+    const ctx = canvas.getContext('2d');
+
+    const prompts = [
+      { at: 0, text: 'Look directly at the camera...' },
+      { at: 20, text: 'Turn face slightly to the left...' },
+      { at: 40, text: 'Turn face slightly to the right...' },
+      { at: 60, text: 'Tilt chin slightly up and down...' }
+    ];
+
+    let currentFrame = 0;
+
+    await new Promise((resolve) => {
+      const interval = setInterval(() => {
+        if (currentFrame >= TARGET_FRAMES) {
+          clearInterval(interval);
+          resolve();
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, 320, 240);
+        canvas.toBlob((blob) => {
+          if (blob) capturedBlobs.push(blob);
+        }, 'image/jpeg', 0.65);
+
+        currentFrame++;
+        const pct = Math.round((currentFrame / TARGET_FRAMES) * 100);
+        progressBar.style.width = `${pct}%`;
+        progressPercent.textContent = `${pct}%`;
+
+        const activePrompt = [...prompts].reverse().find(p => currentFrame >= p.at);
+        const text = activePrompt ? activePrompt.text : 'Hold still...';
+        progressStatus.textContent = `${text} (${currentFrame}/${TARGET_FRAMES})`;
+        if (guideText) guideText.textContent = `${currentFrame}/${TARGET_FRAMES}`;
+      }, 65);
+    });
+
+    stream.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    if (guideText) guideText.textContent = 'Capture Complete!';
+
+    progressStatus.textContent = 'Compiling 80 biometric feature vectors (KNN)...';
+    feedback.innerHTML = '<span style="color: var(--primary);">Uploading 80 clips & training facial vector space...</span>';
+
+    try {
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('designation', (roleInput.value || 'Sanitation Staff').trim());
+      formData.append('phone', (phoneInput.value || '').trim());
+
+      capturedBlobs.forEach((blob, idx) => {
+        formData.append('images', blob, `frame_${idx}.jpg`);
+      });
+
+      const res = await fetchJSON('/api/employees/enroll-web', {
+        method: 'POST',
+        body: formData
+      });
+
+      feedback.innerHTML = `<span style="color: var(--success); font-weight: 700;">🎉 Success: Enrolled ${res.name} with ${res.samples_captured} biometric vector samples!</span>`;
+      alert(`Success: ${res.name} successfully registered with ${res.samples_captured} biometric frames!\nThey can now clock in at Step 1.`);
+
+      nameInput.value = '';
+      roleInput.value = '';
+      phoneInput.value = '';
+      progressContainer.style.display = 'none';
+      progressBar.style.width = '0%';
+      loadAll();
+    } catch (err) {
+      feedback.innerHTML = `<span style="color: var(--danger);">Enrollment error: ${err.message}</span>`;
+      alert(`Enrollment failed: ${err.message}`);
+    } finally {
+      btnStart80.disabled = false;
+    }
+  });
+}
+
+// Fallback manual form submit (for file uploads)
 document.getElementById('employeeForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const feedback = document.getElementById('enrollFeedback');
@@ -637,7 +769,7 @@ document.getElementById('employeeForm').addEventListener('submit', async (e) => 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.fromEntries(formData.entries()))
       });
-      alert('Staff registered! Note: Upload a photo to enable facial recognition.');
+      alert('Staff registered! Note: Use 80-Frame Capture or upload a photo to enable biometrics.');
     }
     e.target.reset();
     if (feedback) feedback.textContent = '';

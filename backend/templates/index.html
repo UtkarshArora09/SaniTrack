@@ -225,17 +225,44 @@
               </form>
             </div>
             <div class="card form-card">
-              <h3>Register New Staff & Face Biometrics</h3>
+              <h3>Register Staff & 80-Frame Biometrics</h3>
               <form id="employeeForm" enctype="multipart/form-data">
-                <input name="name" placeholder="Full name (e.g. Rahul Singh)" required />
-                <input name="designation" placeholder="Designation (e.g. WardBoy)" />
-                <input name="phone" placeholder="WhatsApp phone (+91...)" />
-                <div style="margin: 8px 0;">
-                  <label class="field-label" style="font-size: 11px;">Face Photo / Selfie (For Biometric Verification)</label>
-                  <input type="file" id="enrollPhotoInput" name="images" accept="image/*" />
+                <input name="name" id="enrollNameInput" placeholder="Full name (e.g. Rahul Singh)" required />
+                <input name="designation" id="enrollRoleInput" placeholder="Designation (e.g. WardBoy)" />
+                <input name="phone" id="enrollPhoneInput" placeholder="WhatsApp / Telegram phone" />
+                
+                <div class="enroll-camera-studio" style="margin-top: 10px;">
+                  <div class="camera-preview-box" style="position: relative; height: 180px; background: #0f172a; border-radius: 12px; overflow: hidden; margin-bottom: 8px;">
+                    <video id="enrollWebcamVideo" class="webcam-video" autoplay playsinline muted style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <canvas id="enrollWebcamCanvas" style="display: none;"></canvas>
+                    <div id="enrollFaceGuide" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 120px; height: 150px; border: 2px dashed rgba(255, 255, 255, 0.7); border-radius: 50%; pointer-events: none; display: flex; align-items: center; justify-content: center;">
+                      <span id="enrollGuideText" style="color: #fff; font-size: 11px; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Position Face Here</span>
+                    </div>
+                  </div>
+
+                  <div id="enrollProgressContainer" style="display: none; margin: 8px 0;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; margin-bottom: 4px;">
+                      <span id="enrollProgressStatus">Capturing 0/80 biometric frames...</span>
+                      <span id="enrollProgressPercent">0%</span>
+                    </div>
+                    <div class="meter-bar">
+                      <div id="enrollProgressBar" class="meter-fill" style="width: 0%; background: var(--primary); transition: width 0.08s linear;"></div>
+                    </div>
+                  </div>
+
+                  <div class="btn-group">
+                    <button type="button" class="btn btn-primary" id="btnStart80FrameCapture" style="width: 100%;">
+                      📹 Start 80-Frame Biometric Capture
+                    </button>
+                  </div>
+
+                  <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted); text-align: center;">
+                    Or upload face photo: <input type="file" id="enrollPhotoInput" name="images" accept="image/*" style="font-size: 11px; margin-top: 4px;" />
+                    <button type="submit" id="btnSubmitFileEnroll" class="btn btn-outline btn-sm" style="margin-top: 4px; display: none;">Upload & Enroll</button>
+                  </div>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Register & Enroll Face</button>
-                <div id="enrollFeedback" style="font-size: 12px; margin-top: 6px;"></div>
+
+                <div id="enrollFeedback" style="font-size: 13px; font-weight: 600; margin-top: 8px; text-align: center;"></div>
               </form>
             </div>
           </div>

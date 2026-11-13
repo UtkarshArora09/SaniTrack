@@ -23,6 +23,15 @@ APP_HOST = os.getenv('SANITRACK_HOST', '0.0.0.0')
 APP_PORT = int(os.getenv('PORT', os.getenv('SANITRACK_PORT', '5050')))
 APP_DEBUG = os.getenv('SANITRACK_DEBUG', 'false').lower() == 'true'
 
+# Free Notification Providers (Telegram, Discord, CallMeBot)
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+
+DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
+
+CALLMEBOT_PHONE = os.getenv('CALLMEBOT_PHONE')
+CALLMEBOT_API_KEY = os.getenv('CALLMEBOT_API_KEY')
+
 # Twilio WhatsApp Config
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
@@ -35,9 +44,22 @@ CCTV_POLL_INTERVAL_SECONDS = int(os.getenv('CCTV_INTERVAL', '15'))
 
 
 def notification_config():
+    providers = []
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        providers.append('Telegram Bot (100% Free)')
+    if DISCORD_WEBHOOK_URL:
+        providers.append('Discord Webhook (100% Free)')
+    if CALLMEBOT_PHONE and CALLMEBOT_API_KEY:
+        providers.append('CallMeBot WhatsApp (Free)')
+    if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+        providers.append('Twilio WhatsApp')
+
     return {
+        'active_providers': providers or ['In-App Live Toast Feed (Simulation)'],
+        'telegram_configured': bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
+        'discord_configured': bool(DISCORD_WEBHOOK_URL),
+        'callmebot_configured': bool(CALLMEBOT_PHONE and CALLMEBOT_API_KEY),
         'twilio_configured': bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_WHATSAPP_FROM),
         'admin_whatsapp_configured': bool(ADMIN_WHATSAPP_TO),
-        'from_number': TWILIO_WHATSAPP_FROM or 'Not configured (Simulation Active)',
-        'mode': 'live' if bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN) else 'simulation'
+        'mode': 'live' if providers else 'simulation'
     }
