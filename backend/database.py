@@ -176,11 +176,18 @@ def init_db():
             metadata = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
             for emp_key, info in metadata.items():
                 cur.execute(
-                    'INSERT OR IGNORE INTO employees (emp_key, name, designation, phone, created_at) VALUES (?, ?, ?, ?, ?)',
-                    (emp_key, info.get('name', emp_key), info.get('designation'), info.get('phone'), utc_now_iso()),
+                    '''INSERT INTO employees (emp_key, name, designation, phone, telegram_chat_id, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(emp_key) DO UPDATE SET
+                           name=excluded.name,
+                           designation=excluded.designation,
+                           phone=excluded.phone,
+                           telegram_chat_id=COALESCE(excluded.telegram_chat_id, employees.telegram_chat_id)''',
+                    (emp_key, info.get('name', emp_key), info.get('designation'), info.get('phone'), info.get('telegram_chat_id'), utc_now_iso()),
                 )
         except Exception:
             pass
+
 
     # Seed Default Users for Role-Based Access Control
     pwd_admin, _ = hash_password('admin123')

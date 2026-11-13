@@ -53,6 +53,15 @@ class TelegramBotDaemon(threading.Thread):
                 return
 
             execute('UPDATE employees SET telegram_chat_id = ? WHERE emp_key = ?', (str(chat_id), emp_key))
+            try:
+                import json
+                if config.EMPLOYEES_JSON.exists():
+                    emp_data = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
+                    if emp_key in emp_data:
+                        emp_data[emp_key]['telegram_chat_id'] = str(chat_id)
+                        config.EMPLOYEES_JSON.write_text(json.dumps(emp_data, indent=2), encoding='utf-8')
+            except Exception as e:
+                logger.warning(f"Could not persist chat_id to employees.json: {e}")
             self.send_reply(
                 chat_id,
                 f"🏥 *SaniTrack Staff Linked Successfully!*\n\n"

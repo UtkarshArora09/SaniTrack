@@ -24,18 +24,30 @@ def _send_telegram(message, chat_id=None):
     target_chat = chat_id or config.TELEGRAM_CHAT_ID
     if not (config.TELEGRAM_BOT_TOKEN and target_chat):
         return {'sent': False, 'reason': 'telegram-not-configured'}
+    url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
+    
+    # Try sending with Markdown formatting first
     try:
-        url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {
+        res = requests.post(url, json={
             'chat_id': target_chat,
-            'text': f"🏥 *SaniTrack Hospital Alert*\n{message}",
+            'text': f"🏥 *SaniTrack Alert*\n{message}",
             'parse_mode': 'Markdown'
-        }
-        res = requests.post(url, json=payload, timeout=8)
+        }, timeout=8)
         data = res.json()
-        return {'sent': data.get('ok', False), 'data': data}
+        if data.get('ok'):
+            return {'sent': True, 'data': data}
+        
+        # If Telegram rejected due to markdown formatting/entity error, re-send as clean plain text
+        plain_text = f"🏥 [SaniTrack Alert]\n{message.replace('*', '')}"
+        res_plain = requests.post(url, json={
+            'chat_id': target_chat,
+            'text': plain_text
+        }, timeout=8)
+        data_plain = res_plain.json()
+        return {'sent': data_plain.get('ok', False), 'data': data_plain}
     except Exception as exc:
         return {'sent': False, 'reason': str(exc)}
+
 
 
 # 2. Discord Webhook (100% Free Forever)
@@ -110,7 +122,7 @@ def notify_targets(ward_name, message, employee_phone=None, employee_chat_id=Non
             outcomes.append(record_notification(ward_name, message, channel='telegram', delivery_status=status))
             dispatched_any = True
 
-        # 1b. Worker Personal Alert (if configured)
+        # 1b. Worker Personal Alert (find assigned worker via ID, phone, ward, or JSON)
         target_worker_chat = employee_chat_id or config.WORKER_TELEGRAM_CHAT_ID
         if not target_worker_chat and employee_phone:
             try:
@@ -121,12 +133,42 @@ def notify_targets(ward_name, message, employee_phone=None, employee_chat_id=Non
             except Exception:
                 pass
 
+        if not target_worker_chat and ward_name:
+            try:
+                from database import fetch_one
+                ward_worker = fetch_one(
+                    '''SELECT e.telegram_chat_id, e.phone 
+                       FROM wards w 
+                       JOIN employees e ON e.emp_key = w.assigned_employee_key 
+                       WHERE w.name = ?''',
+                    (ward_name,)
+                )
+                if ward_worker and ward_worker.get('telegram_chat_id'):
+                    target_worker_chat = ward_worker['telegram_chat_id']
+                    if not employee_phone:
+                        employee_phone = ward_worker.get('phone')
+            except Exception:
+                pass
+
+        if not target_worker_chat:
+            try:
+                import json
+                if config.EMPLOYEES_JSON.exists():
+                    emp_data = json.loads(config.EMPLOYEES_JSON.read_text(encoding='utf-8'))
+                    for e_info in emp_data.values():
+                        if e_info.get('telegram_chat_id'):
+                            target_worker_chat = str(e_info['telegram_chat_id'])
+                            break
+            except Exception:
+                pass
+
         if target_worker_chat and str(target_worker_chat) != str(config.TELEGRAM_CHAT_ID):
             worker_msg = f"🔔 *Ward Task Dispatch*\nWard: *{ward_name}*\n{message}"
             tg_w_res = _send_telegram(worker_msg, chat_id=target_worker_chat)
             w_status = 'sent' if tg_w_res.get('sent') else f"failed ({tg_w_res.get('reason')})"
             outcomes.append(record_notification(ward_name, f"[WORKER DISPATCH] {message}", channel='telegram-worker', delivery_status=w_status))
             dispatched_any = True
+
 
 
     # 2. Try Discord Webhook (Free)
