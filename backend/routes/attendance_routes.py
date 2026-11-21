@@ -93,7 +93,20 @@ def enroll_employee_web():
                 continue
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            faces = cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=4, minSize=(40, 40))
+            faces = cascade.detectMultiScale(gray, scaleFactor=1.15, minNeighbors=4, minSize=(35, 35))
+            if len(faces) == 0:
+                gray_eq = cv2.equalizeHist(gray)
+                faces = cascade.detectMultiScale(gray_eq, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
+                if len(faces) == 0:
+                    for rot in [cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180]:
+                        rot_img = cv2.rotate(img, rot)
+                        rot_gray = cv2.cvtColor(rot_img, cv2.COLOR_BGR2GRAY)
+                        rot_faces = cascade.detectMultiScale(rot_gray, scaleFactor=1.15, minNeighbors=3, minSize=(30, 30))
+                        if len(rot_faces) > 0:
+                            img = rot_img
+                            faces = rot_faces
+                            break
+
             if len(faces) > 0:
                 faces_sorted = sorted(faces, key=lambda r: r[2] * r[3], reverse=True)
                 x, y, w, h = faces_sorted[0]

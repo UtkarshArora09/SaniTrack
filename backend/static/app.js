@@ -257,6 +257,31 @@ document.getElementById('attendanceForm').addEventListener('submit', async (e) =
   const select = document.getElementById('attendanceWardSelect');
   const wardName = select.options[select.selectedIndex]?.dataset?.name || select.value;
 
+  const fileInput = e.target.querySelector('input[type="file"][name="image"]');
+  const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+
+  // Auto-snap current live camera frame if stream is active
+  if (!webcamState.attendance.blob && webcamState.attendance.stream) {
+    const video = document.getElementById('attendanceVideo');
+    const canvas = document.getElementById('attendanceCanvas');
+    if (video && canvas) {
+      if (video.videoWidth && video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.classList.add('has-frame');
+      const blobPromise = new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+      webcamState.attendance.blob = await blobPromise;
+    }
+  }
+
+  if (!webcamState.attendance.blob && !hasFile) {
+    resBox.innerHTML = '<span style="color: var(--danger); font-weight: 700;">⚠️ Please start the camera to capture your face, or select a photo file.</span>';
+    return;
+  }
+
   const formData = new FormData(e.target);
   formData.set('ward_name', wardName);
   if (webcamState.attendance.blob) {
@@ -799,12 +824,16 @@ function setupWebcam(type) {
   if (snapBtn) {
     snapBtn.onclick = () => {
       if (!webcamState[type].stream) return alert('Please start camera first');
+      if (video.videoWidth && video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       canvas.classList.add('has-frame');
       canvas.toBlob((blob) => {
         webcamState[type].blob = blob;
-      }, 'image/jpeg');
+      }, 'image/jpeg', 0.95);
     };
   }
 }

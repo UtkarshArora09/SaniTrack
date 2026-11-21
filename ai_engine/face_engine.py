@@ -96,13 +96,41 @@ class FaceEngine:
             'margin': margin,
         }
 
+    def _detect_faces_robust(self, frame):
+        """Detect faces across multiple scales, contrast equalization, and mobile sensor rotations."""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # 1. Standard pass
+        faces = self.cascade.detectMultiScale(gray, scaleFactor=1.15, minNeighbors=4, minSize=(35, 35))
+        if len(faces) > 0:
+            return faces, frame, gray
+            
+        # 2. Histogram equalization for back-lit or dim phone cameras
+        gray_eq = cv2.equalizeHist(gray)
+        faces = self.cascade.detectMultiScale(gray_eq, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
+        if len(faces) > 0:
+            return faces, frame, gray_eq
+            
+        # 3. Handle mobile camera orientation (phone held in portrait/landscape)
+        for rot in [cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180]:
+            rot_frame = cv2.rotate(frame, rot)
+            rot_gray = cv2.cvtColor(rot_frame, cv2.COLOR_BGR2GRAY)
+            faces = self.cascade.detectMultiScale(rot_gray, scaleFactor=1.15, minNeighbors=3, minSize=(35, 35))
+            if len(faces) > 0:
+                return faces, rot_frame, rot_gray
+            rot_eq = cv2.equalizeHist(rot_gray)
+            faces = self.cascade.detectMultiScale(rot_eq, scaleFactor=1.1, minNeighbors=3, minSize=(30, 30))
+            if len(faces) > 0:
+                return faces, rot_frame, rot_eq
+
+        return [], frame, gray
+
     def recognize(self, image_path):
         frame = cv2.imread(str(image_path))
         if frame is None:
             return {'matched': False, 'message': 'Unable to read image file.'}
             
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = self.cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5, minSize=(60, 60))
+        faces, frame, gray = self._detect_faces_robust(frame)
         if len(faces) == 0:
             return {'matched': False, 'message': 'No face detected in the image.'}
         if len(self.sample_labels) == 0:
