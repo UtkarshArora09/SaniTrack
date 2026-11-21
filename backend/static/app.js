@@ -531,6 +531,45 @@ document.getElementById('btnSimulatePresence').addEventListener('click', async (
   updateLiveWardPresenceView();
 });
 
+// Helper: Downscales & compresses image client-side to keep RAM well under Render's 512MB limit
+async function compressImageForUpload(source, maxDim = 640, quality = 0.8) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(source);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          resolve(blob || source);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(source);
+      };
+      img.src = url;
+    } catch (e) {
+      resolve(source);
+    }
+  });
+}
+
 // 8. STEP 4: Asynchronous Floor Inspection (Clean/Not Clean)
 document.getElementById('inspectionForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -562,12 +601,20 @@ document.getElementById('inspectionForm').addEventListener('submit', async (e) =
     return;
   }
 
-  if (webcamState.inspection.blob) {
-    formData.set('image', webcamState.inspection.blob, 'floor.jpg');
-  }
+  submitBtn.disabled = true;
+  resBox.innerHTML = '<div class="spinner">Optimizing image & submitting to AI inspection...</div>';
 
   try {
-    submitBtn.disabled = true;
+    // Client-side compression prevents Render from crashing with Out Of Memory (OOM)
+    let sourceImage = webcamState.inspection.blob;
+    if (!sourceImage && hasFile) {
+      sourceImage = fileInput.files[0];
+    }
+    if (sourceImage) {
+      const optimizedBlob = await compressImageForUpload(sourceImage, 640, 0.8);
+      formData.set('image', optimizedBlob, 'floor.jpg');
+    }
+
     resBox.innerHTML = '<div class="spinner">Scanning floor for waste & contaminants (YOLOv8)...</div>';
 
     // 1. Submit (Immediate 202 Accepted)
@@ -584,6 +631,18 @@ document.getElementById('inspectionForm').addEventListener('submit', async (e) =
         if (res.complete) {
           clearInterval(pollInterval);
           submitBtn.disabled = false;
+
+          if (res.status === 'Failed') {
+            resBox.innerHTML = `
+<div style="font-size: 14px; font-weight: 800; color: var(--danger);">
+  ⚠️ Inspection Analysis Incomplete
+</div>
+<div style="margin-top: 4px; color: var(--text-muted); font-size: 13px;">
+  ${res.notes || 'The cloud server experienced high load. Please try snapping the floor again.'}
+</div>
+            `;
+            return;
+          }
 
           const isClean = res.status === 'Clean';
           resBox.innerHTML = `
@@ -616,7 +675,6 @@ ${res.annotated_image_url ? `<img src="${res.annotated_image_url}" style="width:
         }
       }
     }, 2000);
-
 
   } catch (err) {
     submitBtn.disabled = false;

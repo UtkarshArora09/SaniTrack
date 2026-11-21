@@ -31,8 +31,14 @@ class YOLOInferenceEngine:
         if self._model is not None:
             return self._model
         try:
+            import os
+            os.environ['YOLO_VERBOSE'] = 'False'
             import torch
             torch.set_num_threads(1)
+            try:
+                torch.set_num_interop_threads(1)
+            except Exception:
+                pass
             from ultralytics import YOLO
         except ImportError:
             raise RuntimeError('Ultralytics package is not installed. Please install requirements.txt.')
@@ -59,6 +65,7 @@ class YOLOInferenceEngine:
         Synchronous forward pass on an image with memory safeguards for cloud hosting.
         """
         import torch
+        gc.collect()
         model = self._ensure_model()
 
         # Downscale large images to max 640px to keep RAM usage within Render's 512MB ceiling
@@ -75,16 +82,21 @@ class YOLOInferenceEngine:
         except Exception as e:
             logger.warning(f"Could not pre-scale image {image_path}: {e}")
 
-        with torch.inference_mode():
-            results = model.predict(
-                source=str(image_path),
-                conf=self.confidence_threshold,
-                imgsz=640,
-                device='cpu',
-                max_det=10,
-                save=False,
-                verbose=False
-            )
+        try:
+            with torch.inference_mode():
+                results = model.predict(
+                    source=str(image_path),
+                    conf=self.confidence_threshold,
+                    imgsz=640,
+                    device='cpu',
+                    max_det=10,
+                    save=False,
+                    verbose=False
+                )
+        except Exception as pred_err:
+            logger.error(f"YOLO forward pass exception: {pred_err}", exc_info=True)
+            gc.collect()
+            raise pred_err
 
         result = results[0]
         boxes = result.boxes

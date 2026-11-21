@@ -28,5 +28,5 @@ RUN mkdir -p backend/data/uploads backend/data/inspections backend/data/face_dat
 
 EXPOSE 5050
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} wsgi:app --workers 1 --threads 2 --timeout 180"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5050} wsgi:app --workers 1 --threads 2 --worker-class gthread --max-requests 100 --max-requests-jitter 10 --timeout 180"]
 
