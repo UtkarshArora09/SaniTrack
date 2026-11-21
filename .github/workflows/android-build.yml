@@ -29,17 +29,29 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android 36 Platform & Build Tools
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
       - name: Build Android Debug APK
         working-directory: ./Sani-Track-Android-main/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log || {
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          GRADLE_STATUS=${PIPESTATUS[0]}
+          if [ $GRADLE_STATUS -ne 0 ]; then
             echo "## ❌ Android Build Error Output" >> $GITHUB_STEP_SUMMARY
             echo '```text' >> $GITHUB_STEP_SUMMARY
-            tail -n 150 build.log >> $GITHUB_STEP_SUMMARY
+            tail -n 120 build.log >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            exit 1
-          }
+            exit $GRADLE_STATUS
+          fi
+          mkdir -p "$GITHUB_WORKSPACE/output-apk"
+          find . -name "*.apk" -exec cp {} "$GITHUB_WORKSPACE/output-apk/" \;
 
       - name: Upload Build Log
         if: always()
@@ -52,5 +64,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SaniTrack-Staff-App
-          path: Sani-Track-Android-main/android/app/build/outputs/apk/debug/app-debug.apk
+          path: output-apk/*.apk
           if-no-files-found: error
