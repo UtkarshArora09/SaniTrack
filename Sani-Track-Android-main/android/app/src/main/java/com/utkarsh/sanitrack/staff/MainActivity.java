@@ -1,4 +1,4 @@
-package com.utkarsh.sanitrack;
+package com.utkarsh.sanitrack.staff;
 
 import android.Manifest;
 import android.content.pm.PackageManager;

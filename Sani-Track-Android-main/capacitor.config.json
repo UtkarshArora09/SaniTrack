@@ -1,6 +1,6 @@
 {
-  "appId": "com.utkarsh.sanitrack",
-  "appName": "SaniTrack",
+  "appId": "com.utkarsh.sanitrack.staff",
+  "appName": "SaniTrack Staff",
   "webDir": "www",
   "server": {
     "url": "https://sanitrack.onrender.com/worker",

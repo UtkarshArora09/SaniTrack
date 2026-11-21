@@ -90,7 +90,7 @@ def app_manifest():
 
     manifest_data = {
         "name": f"SaniTrack Staff ({worker_name})" if worker else "SaniTrack Staff Portal",
-        "short_name": "SaniTrack",
+        "short_name": "SaniTrack Staff",
         "description": "Hospital Sanitation & Ward Cleaning Staff Mobile App",
         "start_url": start_url,
         "scope": "/",
