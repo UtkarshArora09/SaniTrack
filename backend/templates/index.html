@@ -57,11 +57,6 @@
 
         <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); line-height: 1.5;">
           <div>Default Supervisor: <code>admin</code> / <code>admin123</code></div>
-          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 13px;">
-            <a href="/worker" style="color: var(--primary); text-decoration: none; font-weight: 600;">
-              🧹 Cleaning Staff Member? Open Staff Portal ➔
-            </a>
-          </div>
         </div>
       </div>
     </div>
@@ -106,6 +101,7 @@
             
             <div class="btn-group">
               <button type="button" class="btn btn-secondary btn-sm" data-start-camera="attendance">Start Camera</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-flip-camera="attendance" title="Switch between front and back camera">🔄 Flip</button>
               <button type="button" class="btn btn-secondary btn-sm" data-capture-camera="attendance">Snap Photo</button>
             </div>
 
@@ -163,6 +159,7 @@
 
           <div class="btn-group">
             <button type="button" class="btn btn-secondary btn-sm" id="btnStartLiveWard">Open Camera</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnFlipLiveWard" title="Switch between front and back camera">🔄 Flip</button>
             <button type="button" class="btn btn-outline btn-sm" id="btnSimulatePresence">Toggle Worker Present / Away</button>
           </div>
 
@@ -189,7 +186,8 @@
             </div>
 
             <div class="btn-group">
-              <button type="button" class="btn btn-secondary btn-sm" data-start-camera="inspection">Start Camera</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-start-camera="inspection">Start Camera (Back)</button>
+              <button type="button" class="btn btn-secondary btn-sm" data-flip-camera="inspection" title="Switch between rear/back and front camera">🔄 Flip</button>
               <button type="button" class="btn btn-secondary btn-sm" data-capture-camera="inspection">Snap Floor</button>
             </div>
 
@@ -293,9 +291,12 @@
                     </div>
                   </div>
 
-                  <div class="btn-group">
-                    <button type="button" class="btn btn-primary" id="btnStart80FrameCapture" style="width: 100%;">
+                  <div class="btn-group" style="display: flex; gap: 6px;">
+                    <button type="button" class="btn btn-primary" id="btnStart80FrameCapture" style="flex: 1;">
                       📹 Start 80-Frame Biometric Capture
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="btnFlipEnrollCamera" title="Switch between front and back camera" style="width: auto; padding: 0 12px;">
+                      🔄 Flip (Front)
                     </button>
                   </div>
 

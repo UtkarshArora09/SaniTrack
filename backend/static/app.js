@@ -20,10 +20,60 @@ async function fetchJSON(url, options) {
 }
 
 const webcamState = {
-  attendance: { stream: null, blob: null },
-  inspection: { stream: null, blob: null },
-  liveWard: { stream: null, isPresent: false },
+  attendance: { stream: null, blob: null, facingMode: 'user' },
+  inspection: { stream: null, blob: null, facingMode: 'environment' },
+  liveWard: { stream: null, isPresent: false, facingMode: 'environment' },
 };
+
+// Universal Camera Helper: Auto-switches between Back and Front Camera on any device/phone
+async function requestCameraStream(preferredFacing = 'environment') {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('Camera API (navigator.mediaDevices.getUserMedia) is not supported by your browser or environment.');
+  }
+
+  const tryFacing = preferredFacing === 'user' ? 'user' : 'environment';
+  const fallbackFacing = tryFacing === 'environment' ? 'user' : 'environment';
+
+  // Strategy 1: Ideal facingMode with 1280x720 ideal resolution
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: tryFacing },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
+  } catch (e1) {
+    console.debug(`Camera ideal ${tryFacing} failed, trying exact/simple constraint:`, e1);
+  }
+
+  // Strategy 2: Simple string facingMode
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: tryFacing },
+      audio: false
+    });
+  } catch (e2) {
+    console.debug(`Camera simple string facingMode ${tryFacing} failed, trying fallback:`, e2);
+  }
+
+  // Strategy 3: Try opposite camera (e.g. if phone only has front or only back)
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: fallbackFacing } },
+      audio: false
+    });
+  } catch (e3) {
+    console.debug(`Camera fallback to ${fallbackFacing} failed:`, e3);
+  }
+
+  // Strategy 4: Bare video constraint (guaranteed compatibility with desktop/laptop single webcams)
+  return await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: false
+  });
+}
 
 const appState = {
   employees: [],
@@ -403,29 +453,64 @@ document.getElementById('liveViewWardSelect').addEventListener('change', () => {
   }
 });
 
-document.getElementById('btnStartLiveWard').addEventListener('click', async () => {
+async function startLiveWardStream() {
   const video = document.getElementById('liveWardVideo');
   const btn = document.getElementById('btnStartLiveWard');
+  const flipBtn = document.getElementById('btnFlipLiveWard');
 
   if (webcamState.liveWard.stream) {
     webcamState.liveWard.stream.getTracks().forEach(t => t.stop());
     webcamState.liveWard.stream = null;
-    video.srcObject = null;
-    if (livePresenceTrackerTimer) clearInterval(livePresenceTrackerTimer);
-    btn.textContent = 'Open Camera';
-    updateLiveWardPresenceView();
-    return;
   }
 
   try {
-    webcamState.liveWard.stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = webcamState.liveWard.stream;
-    btn.textContent = '🟢 Camera Streaming (Live AI)';
+    if (btn) btn.textContent = 'Connecting Camera...';
+    const stream = await requestCameraStream(webcamState.liveWard.facingMode || 'environment');
+    webcamState.liveWard.stream = stream;
+    if (video) video.srcObject = stream;
+    const isBack = (webcamState.liveWard.facingMode || 'environment') === 'environment';
+    if (btn) btn.textContent = isBack ? '🟢 Streaming (Back Cam)' : '🟢 Streaming (Front Cam)';
+    if (flipBtn) flipBtn.textContent = isBack ? '🔄 To Front' : '🔄 To Back';
     startLivePresenceTracker();
   } catch (e) {
-    alert(`Camera permission denied: ${e.message}`);
+    if (btn) btn.textContent = 'Open Camera';
+    alert(`Live Ward camera error: ${e.message}`);
   }
-});
+}
+
+const btnLiveWard = document.getElementById('btnStartLiveWard');
+if (btnLiveWard) {
+  btnLiveWard.addEventListener('click', async () => {
+    const video = document.getElementById('liveWardVideo');
+    const flipBtn = document.getElementById('btnFlipLiveWard');
+
+    if (webcamState.liveWard.stream) {
+      webcamState.liveWard.stream.getTracks().forEach(t => t.stop());
+      webcamState.liveWard.stream = null;
+      if (video) video.srcObject = null;
+      if (livePresenceTrackerTimer) clearInterval(livePresenceTrackerTimer);
+      btnLiveWard.textContent = 'Open Camera';
+      if (flipBtn) flipBtn.textContent = '🔄 Flip';
+      updateLiveWardPresenceView();
+      return;
+    }
+
+    await startLiveWardStream();
+  });
+}
+
+const btnFlipLiveWard = document.getElementById('btnFlipLiveWard');
+if (btnFlipLiveWard) {
+  btnFlipLiveWard.addEventListener('click', async () => {
+    webcamState.liveWard.facingMode = (webcamState.liveWard.facingMode === 'environment') ? 'user' : 'environment';
+    if (webcamState.liveWard.stream) {
+      await startLiveWardStream();
+    } else {
+      const isBack = webcamState.liveWard.facingMode === 'environment';
+      btnFlipLiveWard.textContent = isBack ? '🔄 To Front' : '🔄 To Back';
+    }
+  });
+}
 
 document.getElementById('btnSimulatePresence').addEventListener('click', async () => {
   const select = document.getElementById('liveViewWardSelect');
@@ -593,7 +678,7 @@ async function pollToast() {
 }
 setInterval(pollToast, 3000);
 
-// Camera Setup
+// Camera Setup with Rear/Back & Front Camera Support + Flip Toggle
 function setupWebcam(type) {
   const video = document.getElementById(`${type}Video`);
   const canvas = document.getElementById(`${type}Canvas`);
@@ -601,14 +686,54 @@ function setupWebcam(type) {
 
   const startBtn = document.querySelector(`[data-start-camera="${type}"]`);
   const snapBtn = document.querySelector(`[data-capture-camera="${type}"]`);
+  const flipBtn = document.querySelector(`[data-flip-camera="${type}"]`);
+
+  async function startStream() {
+    if (webcamState[type].stream) {
+      webcamState[type].stream.getTracks().forEach(t => t.stop());
+      webcamState[type].stream = null;
+    }
+    try {
+      if (startBtn) startBtn.textContent = 'Connecting Camera...';
+      const stream = await requestCameraStream(webcamState[type].facingMode);
+      webcamState[type].stream = stream;
+      video.srcObject = stream;
+      const isBack = webcamState[type].facingMode === 'environment';
+      if (startBtn) {
+        startBtn.textContent = isBack ? '🟢 Active (Back Cam)' : '🟢 Active (Front Cam)';
+      }
+      if (flipBtn) {
+        flipBtn.textContent = isBack ? '🔄 To Front' : '🔄 To Back';
+      }
+    } catch (e) {
+      if (startBtn) startBtn.textContent = type === 'inspection' ? 'Start Camera (Back)' : 'Start Camera';
+      alert(`Camera access denied: ${e.message}`);
+    }
+  }
 
   if (startBtn) {
     startBtn.onclick = async () => {
-      try {
-        webcamState[type].stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = webcamState[type].stream;
-      } catch (e) {
-        alert(`Camera access denied: ${e.message}`);
+      if (webcamState[type].stream) {
+        webcamState[type].stream.getTracks().forEach(t => t.stop());
+        webcamState[type].stream = null;
+        video.srcObject = null;
+        startBtn.textContent = type === 'inspection' ? 'Start Camera (Back)' : 'Start Camera';
+        if (flipBtn) flipBtn.textContent = '🔄 Flip';
+        return;
+      }
+      await startStream();
+    };
+  }
+
+  if (flipBtn) {
+    flipBtn.onclick = async () => {
+      webcamState[type].facingMode = (webcamState[type].facingMode === 'environment') ? 'user' : 'environment';
+      if (webcamState[type].stream) {
+        await startStream();
+      } else {
+        const isBack = webcamState[type].facingMode === 'environment';
+        flipBtn.textContent = isBack ? '🔄 To Front' : '🔄 To Back';
+        if (startBtn) startBtn.textContent = isBack ? 'Start Camera (Back)' : 'Start Camera (Front)';
       }
     };
   }
@@ -673,6 +798,17 @@ if (fileInput) {
 }
 
 // 80-Frame Biometric Capture Studio
+let enrollFacingMode = 'user';
+const btnFlipEnroll = document.getElementById('btnFlipEnrollCamera');
+if (btnFlipEnroll) {
+  btnFlipEnroll.addEventListener('click', () => {
+    enrollFacingMode = (enrollFacingMode === 'user' ? 'environment' : 'user');
+    const isBack = enrollFacingMode === 'environment';
+    btnFlipEnroll.textContent = isBack ? '🔄 Flip (Back)' : '🔄 Flip (Front)';
+    btnFlipEnroll.title = `Switch camera (Currently: ${isBack ? 'Rear/Back' : 'Front'} Camera)`;
+  });
+}
+
 const btnStart80 = document.getElementById('btnStart80FrameCapture');
 if (btnStart80) {
   btnStart80.addEventListener('click', async () => {
@@ -715,9 +851,7 @@ if (btnStart80) {
 
     let stream = null;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' }
-      });
+      stream = await requestCameraStream(enrollFacingMode);
       video.srcObject = stream;
       await new Promise(r => video.onloadedmetadata = r);
       video.play();

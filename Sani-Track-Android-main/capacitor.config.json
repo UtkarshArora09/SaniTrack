@@ -1,0 +1,12 @@
+{
+  "appId": "com.utkarsh.sanitrack",
+  "appName": "SaniTrack",
+  "webDir": "www",
+  "server": {
+    "url": "https://sanitrack.onrender.com/worker",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SaniTrack</string>
+    <string name="title_activity_main">SaniTrack</string>
+    <string name="package_name">com.utkarsh.sanitrack</string>
+    <string name="custom_url_scheme">com.utkarsh.sanitrack</string>
+</resources>
